@@ -125,6 +125,9 @@ class BaseSalesforceSyncService
       owner_salesforce_id: data["OwnerId"],
       salesforce_created_date: parse_datetime(data["CreatedDate"]),
       arr: parse_decimal(data["ARR__c"]),
+      annual_revenue: parse_decimal(data["AnnualRevenue"]),
+      mrr: parse_decimal(data["MRR__c"]),
+      amount_paid: parse_decimal(data["Amount_Paid__c"]),
       status: data["Asset_Panda_Status__c"],
       industry: data["Industry"],
       segment: nil,
@@ -133,12 +136,24 @@ class BaseSalesforceSyncService
   end
 
   def assign_opportunity_attributes(opportunity, data)
+    amount = parse_decimal(data["Amount"])
+    probability = parse_decimal(data["Probability"])
+
+    expected_revenue = if amount && probability
+      amount * (probability / 100.0)
+    else
+      amount || 0
+    end
+
     opportunity.assign_attributes(
       name: data["Name"].presence || "Unknown Opportunity",
       account_salesforce_id: data["AccountId"],
       owner_salesforce_id: data["OwnerId"],
       stage_name: data["StageName"] || "Unknown",
-      amount: parse_decimal(data["Amount"]),
+      amount: amount,
+      probability: probability,
+      expected_revenue: expected_revenue,
+      forecast_category: data["ForecastCategory"] || data["ForecastCategoryName"],
       close_date: parse_date(data["CloseDate"]),
       salesforce_created_date: parse_datetime(data["CreatedDate"]),
       is_closed: data["IsClosed"] || false,

@@ -142,7 +142,8 @@ class BaseSalesforceService
   def opportunity_fields
     %w[
       Id Name AccountId OwnerId StageName Amount CloseDate CreatedDate
-      LastModifiedDate IsClosed IsWon Type LeadSource
+      LastModifiedDate IsClosed IsWon Type LeadSource Probability
+      ForecastCategory ForecastCategoryName
     ].join(", ")
   end
 

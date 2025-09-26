@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_09_25_175724) do
+ActiveRecord::Schema[8.0].define(version: 2025_09_26_120628) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -27,6 +27,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_09_25_175724) do
     t.string "app_type", default: "legacy", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "annual_revenue", precision: 12, scale: 2
+    t.decimal "mrr", precision: 12, scale: 2
+    t.decimal "amount_paid", precision: 12, scale: 2
     t.index ["app_type"], name: "index_accounts_on_app_type"
     t.index ["owner_salesforce_id"], name: "index_accounts_on_owner_salesforce_id"
     t.index ["salesforce_created_date"], name: "index_accounts_on_salesforce_created_date"
@@ -93,10 +96,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_09_25_175724) do
     t.string "app_type", default: "legacy", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "probability", precision: 5, scale: 2
+    t.decimal "expected_revenue", precision: 12, scale: 2
+    t.string "forecast_category"
     t.index ["account_salesforce_id"], name: "index_opportunities_on_account_salesforce_id"
     t.index ["app_type"], name: "index_opportunities_on_app_type"
+    t.index ["expected_revenue"], name: "index_opportunities_on_expected_revenue"
     t.index ["is_closed", "is_won"], name: "index_opportunities_on_is_closed_and_is_won"
     t.index ["owner_salesforce_id"], name: "index_opportunities_on_owner_salesforce_id"
+    t.index ["probability"], name: "index_opportunities_on_probability"
     t.index ["salesforce_created_date"], name: "index_opportunities_on_salesforce_created_date"
     t.index ["salesforce_id"], name: "index_opportunities_on_salesforce_id", unique: true
     t.index ["stage_name"], name: "index_opportunities_on_stage_name"
