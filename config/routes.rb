@@ -1,14 +1,17 @@
+# config/routes.rb
 Rails.application.routes.draw do
-  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
+  # Root route - serves the React app
+  root "salesforce_dashboard#index"
 
-  # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
-  # Can be used by load balancers and uptime monitors to verify that the app is live.
-  get "up" => "rails/health#show", as: :rails_health_check
+  # Simple API routes
+  get "api/salesforce", to: "salesforce_dashboard#api_data"
+  post "api/ai-query", to: "salesforce_dashboard#ai_query"   # AI Query endpoint
+  post "api/reset-chat", to: "salesforce_dashboard#reset_chat"  # Reset chat context
+  get "api/chat-status", to: "salesforce_dashboard#chat_status"
+  get "api/health", to: "salesforce_dashboard#health_check"
 
-  # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)
-  # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
-  # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
-
-  # Defines the root path route ("/")
-  # root "posts#index"
+  # Catch all route for React Router (if needed later)
+  get "*path", to: "salesforce_dashboard#index", constraints: ->(request) do
+    !request.xhr? && request.format.html?
+  end
 end

@@ -1,8 +1,3 @@
-/*
- *= require_tree .
- *= require_self
- */
-
 /* app/assets/stylesheets/salesforce_dashboard.css */
 
 /* Base styles matching your existing dashboard */
@@ -10,136 +5,67 @@
   min-height: 100vh;
   background-color: #f8f9fa;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  margin: 0;
-  padding: 0;
-  width: 100%;
 }
 
 .app-header {
   background: white;
   border-bottom: 1px solid #e9ecef;
-  padding: 50px 0;
+  padding: 1rem 0;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  width: 100%;
 }
 
 .header-content {
-  width: 100%;
-  margin: 0;
-  padding: 0 32px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 30px;
-  max-width: none;
-}
-
-.header-text {
-  text-align: left;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .header-text h1 {
   margin: 0;
   color: #2c3e50;
-  font-size: 2.5rem;
+  font-size: 1.8rem;
   font-weight: 600;
-  margin-bottom: 10px;
-}
-
-/* AI Search Section */
-.search-section {
-  justify-self: center;
-  width: 100%;
-  max-width: 600px;
-}
-
-.open-chat-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  background: white;
-  border: 2px solid #e9ecef;
-  border-radius: 12px;
-  overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  width: 100%;
-  padding: 14px 20px;
-  color: #6c757d;
-  cursor: pointer;
-  font-size: 1rem;
-  text-decoration: none;
-  justify-content: flex-start;
-  gap: 12px;
-}
-
-.open-chat-btn:hover {
-  border-color: #3498db;
-  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.15);
-}
-
-.search-icon {
-  font-size: 18px;
-  opacity: 0.7;
 }
 
 .controls-section {
-  justify-self: end;
   display: flex;
+  gap: 1rem;
   align-items: center;
-  gap: 30px;
 }
 
 .app-type-selector,
 .timeframe-selector {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  background: #f8f9fa;
-  padding: 8px 16px;
-  border-radius: 10px;
-  border: 1px solid #e9ecef;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .app-type-selector label,
 .timeframe-selector label {
-  color: #495057;
+  font-size: 0.875rem;
   font-weight: 500;
-  font-size: 0.95rem;
-  white-space: nowrap;
-  margin: 0;
+  color: #6c757d;
 }
 
 .app-type-select,
 .timeframe-select {
-  padding: 8px 12px;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
+  padding: 0.5rem;
+  border: 1px solid #ced4da;
+  border-radius: 0.375rem;
   background: white;
-  color: #495057;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: border-color 0.2s;
+  font-size: 0.875rem;
   min-width: 120px;
 }
 
-.app-type-select:hover,
-.timeframe-select:hover {
-  border-color: #3498db;
-}
-
-.app-type-select:focus,
-.timeframe-select:focus {
-  outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
-}
-
 .app-main {
-  width: 100%;
-  margin: 0;
-  padding: 32px;
-  box-sizing: border-box;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
 }
 
 /* Stats grid */
@@ -148,7 +74,6 @@
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
-  width: 100%;
 }
 
 .stat-card {
@@ -184,7 +109,6 @@
 /* Charts section */
 .charts-section {
   margin-top: 2rem;
-  width: 100%;
 }
 
 .charts-section h2 {
@@ -199,7 +123,6 @@
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
   margin-bottom: 1.5rem;
-  width: 100%;
 }
 
 .charts-grid-one {
@@ -207,7 +130,6 @@
   grid-template-columns: 1fr;
   gap: 1.5rem;
   margin-bottom: 1.5rem;
-  width: 100%;
 }
 
 .chart-container {
@@ -215,11 +137,7 @@
   padding: 1.5rem;
   border-radius: 0.5rem;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  min-height: 450px;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  box-sizing: border-box;
+  min-height: 400px;
 }
 
 .chart-container h3 {
@@ -227,48 +145,25 @@
   font-size: 1.125rem;
   font-weight: 600;
   color: #2c3e50;
-  text-align: center;
 }
 
 .chart-with-legend {
-  flex: 1;
+  height: 320px;
   position: relative;
-  min-height: 350px;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-.chart-with-legend canvas {
-  max-height: 100% !important;
-  width: 100% !important;
 }
 
 .pie-chart-container {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  min-height: 450px;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  box-sizing: border-box;
+  justify-content: center;
 }
 
 .pie-chart-wrapper {
-  flex: 1;
+  height: 320px;
   position: relative;
-  min-height: 350px;
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 100%;
-}
-
-.pie-chart-wrapper canvas {
-  max-width: 100% !important;
-  max-height: 100% !important;
 }
 
 /* Loading and error states */
@@ -280,7 +175,6 @@
   align-items: center;
   min-height: 60vh;
   text-align: center;
-  width: 100%;
 }
 
 .loading-container h2,
@@ -309,7 +203,6 @@
   .header-content {
     flex-direction: column;
     text-align: center;
-    padding: 0 1rem;
   }
   
   .controls-section {
@@ -327,21 +220,4 @@
   .stats-grid {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
-}
-
-.app-header .header-content {
-  padding-left: 32px !important;
-  padding-right: 32px !important;
-}
-
-.app .app-main {
-  padding-left: 32px !important;
-  padding-right: 32px !important;
-  padding-top: 32px !important;
-  padding-bottom: 32px !important;
-}
-
-.stats-grid {
-  margin-left: 0 !important;
-  margin-right: 0 !important;
 }
