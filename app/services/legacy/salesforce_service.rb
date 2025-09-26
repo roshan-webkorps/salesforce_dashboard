@@ -1,15 +1,16 @@
+# app/services/legacy/salesforce_service.rb
 module Legacy
   class SalesforceService < BaseSalesforceService
-    def initialize
-      client = Restforce.new(
-        api_version: "41.0",
-        username: ENV["LEGACY_SALESFORCE_USERNAME"],
-        password: ENV["LEGACY_SALESFORCE_PASSWORD_TOKEN"],
+    protected
+
+    def get_credentials
+      {
+        host: ENV["LEGACY_SALESFORCE_HOST"],
         client_id: ENV["LEGACY_SALESFORCE_CLIENT_ID"],
         client_secret: ENV["LEGACY_SALESFORCE_CLIENT_SECRET"],
-        host: ENV["LEGACY_SALESFORCE_HOST"] || ENV["SALESFORCE_HOST"]
-      )
-      super(client)
+        username: ENV["LEGACY_SALESFORCE_USERNAME"],
+        password_token: ENV["LEGACY_SALESFORCE_PASSWORD_TOKEN"]
+      }
     end
   end
 end
