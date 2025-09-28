@@ -11,7 +11,6 @@ module SalesforceBedrockAiQueryProcessor
   def process_salesforce_bedrock_ai_query(user_query, app_type = "legacy", chat_service = nil)
     begin
       Rails.logger.info "=== SALESFORCE BEDROCK QUERY PROCESSING ==="
-      Rails.logger.info "User Query: #{user_query}"
       Rails.logger.info "App Type: #{app_type}"
       Rails.logger.info "Has Context: #{chat_service&.has_context?}"
 
@@ -20,13 +19,16 @@ module SalesforceBedrockAiQueryProcessor
       end
 
       schema_context = get_salesforce_database_context(app_type)
-
       conversation_context = chat_service&.build_context_for_prompt(app_type) || ""
 
       ai_response = call_bedrock_api(user_query, app_type, schema_context, conversation_context)
       parsed_response = parse_ai_response(ai_response)
 
       if parsed_response["sql"].present?
+        Rails.logger.info "User Query: #{user_query}"
+        Rails.logger.info "Description: #{parsed_response['description']}"
+        Rails.logger.info "Generated SQL: #{parsed_response['sql']}"
+
         results = execute_safe_query(parsed_response["sql"])
 
         formatted_results = Ai::SalesforceChartFormatter.format_results(results, parsed_response, user_query)
@@ -49,6 +51,7 @@ module SalesforceBedrockAiQueryProcessor
 
         formatted_results
       else
+        Rails.logger.error "No SQL generated from AI response"
         { error: "Could not generate a valid query from your request." }
       end
 
@@ -62,14 +65,26 @@ module SalesforceBedrockAiQueryProcessor
   end
 
   def is_data_query?(user_query)
+    query_lower = user_query.downcase
+
+    conversational_patterns = [
+      "how can i", "how do i", "what are best practices", "help me", "advice", "recommend",
+      "should i", "what should", "how to", "tips for", "guide me", "explain how",
+      "why is", "why are", "how can we", "what training", "how should i"
+    ]
+
+    return false if conversational_patterns.any? { |pattern| query_lower.include?(pattern) }
+
+    # Data query keywords
     data_keywords = [
       "show", "list", "find", "get", "top", "most", "least", "how many", "count", "features",
       "opportunities", "accounts", "leads", "cases", "users", "sales", "revenue", "pipeline",
       "deals", "wins", "closed", "open", "conversion", "performance", "stats", "metrics",
-      "reps", "customers", "prospects", "support", "tickets", "activity", "month", "year"
+      "reps", "customers", "prospects", "support", "tickets", "activity", "month", "year",
+      "trend", "distribution", "by", "compare", "vs", "versus", "which", "what", "segment",
+      "average time", "stuck in", "spend in"
     ]
 
-    query_lower = user_query.downcase
     data_keywords.any? { |keyword| query_lower.include?(keyword) }
   end
 
@@ -110,7 +125,6 @@ module SalesforceBedrockAiQueryProcessor
     content&.strip
   rescue => e
     Rails.logger.error "Bedrock API call error: #{e.message}"
-    Rails.logger.error "Backtrace: #{e.backtrace.first(3)}"
     raise
   end
 
@@ -134,6 +148,8 @@ module SalesforceBedrockAiQueryProcessor
       - Do NOT use column aliases with double quotes like "Sales Rep Name"
       - Use simple column aliases: name AS sales_rep_name (no quotes)
       - For ORDER BY: use numbers (ORDER BY 1, 2) or repeat the expression, NOT column aliases
+      - CRITICAL: SQL must be on a SINGLE LINE with no line breaks or newlines
+      - Replace all newlines in SQL with spaces to ensure valid JSON
 
       REQUIRED RESPONSE FORMAT (copy this structure exactly):
       {"sql": "SELECT simple query here", "description": "Brief description", "chart_type": "bar"}
@@ -153,20 +169,46 @@ module SalesforceBedrockAiQueryProcessor
 
       COMPARISON QUERY RULES:
       - For time comparisons like "January vs March" or "Q1 vs Q2", create AGGREGATE totals, not per-rep breakdowns
+      - EXCEPTION: For rep performance comparisons like "this quarter vs last quarter", show individual rep data
       - NEVER reference column aliases in ORDER BY - use column numbers instead
-      - For "compare X vs Y" queries, return just TWO rows: one for each time period
+      - For simple period comparisons, return just TWO rows: one for each time period
+      - For rep performance comparisons, return multiple rows showing each rep's performance
       - Use UNION to combine separate time period queries into aggregate results
       - Format: SELECT 'Period Name' as period, COUNT/SUM as total
 
-      DEFAULT TIME FRAME RULE:
-      - Unless a specific time frame is mentioned in the query, ALWAYS filter data to the last 1 month
-      - For opportunities: use "salesforce_created_date >= NOW() - INTERVAL '1 month'" (or close_date if query is about closed deals)
-      - For accounts: use "salesforce_created_date >= NOW() - INTERVAL '1 month'"
-      - For leads: use "salesforce_created_date >= NOW() - INTERVAL '1 month'" (or conversion_date if query is about conversions)
-      - For cases: use "salesforce_created_date >= NOW() - INTERVAL '1 month'" (or closed_date if query is about closed cases)
-      - If user specifies a different time frame (e.g., "last 6 months", "this year", "last week"), use that instead
-      - If query asks for "all time" or "ever" or similar, don't apply time filtering
-      - For year comparisons, use current year 2025
+      NATURAL LANGUAGE TERMINOLOGY MAPPING:
+      Map common business terms to database fields:
+      - "revenue" = opportunities.amount (for closed won deals) OR accounts.annual_revenue#{' '}
+      - "deals" = opportunities
+      - "reps" or "salespeople" = users (sales representatives)
+      - "clients" or "customers" = accounts
+      - "prospects" = leads
+      - "tickets" = cases
+      - "pipeline" = open opportunities (is_closed = false)
+      - "closed business" or "won deals" = is_closed = true AND is_won = true
+      - "lost deals" = is_closed = true AND is_won = false
+      - "conversion" = leads where is_converted = true
+      - "performance" = revenue, win rates, activity metrics
+      - "activity" = count of opportunities, leads, etc.
+
+      DEFAULT TIME FRAME RULE - BE VERY SPECIFIC:
+
+      APPLY 1-MONTH TIME FILTER for these query types:
+      - "created this month", "new", "recent", "lately"
+      - Activity-based: "opportunities created", "leads generated", "cases opened"
+      - Any query about RECENT activity or CREATION
+
+      DO NOT APPLY TIME FILTER for these query types:
+      - "highest revenue" (looking for top performers all-time)
+      - "by industry", "by segment", "distribution" (analyzing all existing data)
+      - "all accounts", "total revenue", "best performing" (historical analysis)
+      - Any query about EXISTING attributes or ALL-TIME rankings
+
+      Examples:
+      - "top accounts by revenue" = NO time filter (all accounts)
+      - "accounts created this month" = YES time filter
+      - "best sales reps" = NO time filter (all-time performance)
+      - "recent opportunities" = YES time filter
 
       SQL SIMPLICITY RULES:
       1. ONLY use basic SELECT queries - no CTEs, no WITH clauses, no subqueries
@@ -180,18 +222,48 @@ module SalesforceBedrockAiQueryProcessor
         - "closed/won/completed" = is_closed = true AND is_won = true
         - "open/pipeline" = is_closed = false
         - "lost/closed lost" = is_closed = true AND is_won = false
+        - Common stage names: 'Prospecting', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost'
+        - Use ILIKE for stage matching to handle case variations: stage_name ILIKE '%negotiation%'
       9. For lead statuses, common values: 'New', 'Working', 'Qualified', 'Converted', 'Unqualified'
       10. For case priorities: 'High', 'Medium', 'Low', 'Critical'
+      11. ALWAYS use ROUND() for percentages and rates: ROUND(calculation, 2) for 2 decimal places
+      12. For date formatting in trends, use TO_CHAR(date, 'YYYY-MM') for month format
+      13. NEVER use window functions like LAG, LEAD, or complex analytic functions
+      14. For comparisons over time periods, use simple CASE statements or separate UNION queries
+      LEAD CONVERSION LOGIC:
+      - Lead conversion rates should use the lead.is_converted field, NOT opportunity counts
+      - Do NOT try to link leads to opportunities unless there's explicit relationship data
+      - For "lead-to-opportunity conversion", use: COUNT(CASE WHEN l.is_converted = true THEN 1 END) / COUNT(*)
+      - Opportunities and leads are separate entities - don't assume correlation based on dates
+      - If asked about "lead conversion", focus on leads.is_converted field only
 
       EXAMPLE RESPONSES:
 
-      Simple query:
-      {"sql": "SELECT u.name, COUNT(o.id) as opportunity_count FROM users u JOIN opportunities o ON u.salesforce_id = o.owner_salesforce_id WHERE o.app_type = '#{app_type}' AND u.app_type = '#{app_type}' AND o.salesforce_created_date >= NOW() - INTERVAL '1 month' GROUP BY u.name ORDER BY 2 DESC LIMIT 5", "description": "Top 5 sales reps with most opportunities created this month", "chart_type": "bar"}
+      Query about ALL-TIME rankings (NO time filter):
+      {"sql": "SELECT a.name, a.annual_revenue FROM accounts a JOIN users u ON a.owner_salesforce_id = u.salesforce_id WHERE a.app_type = '#{app_type}' AND u.app_type = '#{app_type}' AND a.annual_revenue > 0 ORDER BY a.annual_revenue DESC LIMIT 10", "description": "Top 10 accounts by annual revenue", "chart_type": "bar"}
 
-      Comparison query (AGGREGATE format):
-      {"sql": "SELECT 'January' as period, SUM(o.amount) as total FROM opportunities o JOIN users u ON o.owner_salesforce_id = u.salesforce_id WHERE o.app_type = '#{app_type}' AND u.app_type = '#{app_type}' AND o.is_closed = true AND o.is_won = true AND o.close_date >= '2025-01-01' AND o.close_date < '2025-02-01' UNION SELECT 'March' as period, SUM(o.amount) as total FROM opportunities o JOIN users u ON o.owner_salesforce_id = u.salesforce_id WHERE o.app_type = '#{app_type}' AND u.app_type = '#{app_type}' AND o.is_closed = true AND o.is_won = true AND o.close_date >= '2025-03-01' AND o.close_date < '2025-04-01'", "description": "Total revenue comparison between January and March 2025", "chart_type": "bar"}
+      Query with proper rounding for rates:
+      {"sql": "SELECT u.name, ROUND(COUNT(CASE WHEN o.is_won = true THEN 1 END) * 100.0 / COUNT(*), 2) as win_rate FROM users u JOIN opportunities o ON u.salesforce_id = o.owner_salesforce_id WHERE u.app_type = '#{app_type}' AND o.app_type = '#{app_type}' AND o.is_closed = true GROUP BY u.name ORDER BY 2 DESC", "description": "Sales rep win rates", "chart_type": "bar"}
 
-      Chart types: "bar" for rankings/counts, "pie" for distributions, "table" for lists.
+      Query with date formatting for trends:
+      {"sql": "SELECT TO_CHAR(o.close_date, 'Mon YYYY') as month, SUM(o.amount) as revenue FROM opportunities o WHERE o.app_type = '#{app_type}' AND o.is_closed = true AND o.is_won = true AND o.close_date >= NOW() - INTERVAL '6 months' GROUP BY TO_CHAR(o.close_date, 'Mon YYYY') ORDER BY MIN(o.close_date)", "description": "Monthly revenue trend", "chart_type": "line"}
+
+      Simple lead conversion (using is_converted field):
+      {"sql": "SELECT u.name, ROUND(COUNT(CASE WHEN l.is_converted = true THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as conversion_rate, COUNT(*) as total_leads FROM users u JOIN leads l ON u.salesforce_id = l.owner_salesforce_id WHERE u.app_type = '#{app_type}' AND l.app_type = '#{app_type}' GROUP BY u.name HAVING COUNT(*) >= 10 ORDER BY 2 DESC LIMIT 10", "description": "Lead conversion rates by sales rep", "chart_type": "bar"}
+
+      Stage matching with case-insensitive search:
+      {"sql": "SELECT o.name, u.name, EXTRACT(EPOCH FROM (NOW() - o.salesforce_created_date))/86400 as days_old FROM opportunities o JOIN users u ON o.owner_salesforce_id = u.salesforce_id WHERE o.app_type = '#{app_type}' AND u.app_type = '#{app_type}' AND o.stage_name ILIKE '%negotiation%' AND o.is_closed = false ORDER BY o.salesforce_created_date ASC LIMIT 10", "description": "Oldest deals stuck in negotiation", "chart_type": "table"}
+
+      Rep performance comparison by quarter:
+      {"sql": "SELECT u.name, 'Current Quarter' as period, SUM(CASE WHEN o.is_won = true THEN o.amount ELSE 0 END) as revenue FROM users u LEFT JOIN opportunities o ON u.salesforce_id = o.owner_salesforce_id WHERE u.app_type = '#{app_type}' AND o.app_type = '#{app_type}' AND o.close_date >= DATE_TRUNC('quarter', CURRENT_DATE) GROUP BY u.name UNION SELECT u.name, 'Previous Quarter' as period, SUM(CASE WHEN o.is_won = true THEN o.amount ELSE 0 END) as revenue FROM users u LEFT JOIN opportunities o ON u.salesforce_id = o.owner_salesforce_id WHERE u.app_type = '#{app_type}' AND o.app_type = '#{app_type}' AND o.close_date >= DATE_TRUNC('quarter', CURRENT_DATE) - INTERVAL '3 months' AND o.close_date < DATE_TRUNC('quarter', CURRENT_DATE) GROUP BY u.name ORDER BY 1, 2", "description": "Sales rep performance by quarter", "chart_type": "table"}
+
+      CHART TYPE SELECTION RULES:
+      - "bar" for rankings, top lists, comparisons between categories
+      - "pie" for distributions, percentages, parts of a whole
+      - "line" for trends over time, monthly/quarterly analysis, time series data
+      - "table" for detailed lists, multiple columns of data
+
+      CRITICAL: Any query with "trend", "over time", "monthly", "quarterly", "by month", "by quarter" MUST use chart_type: "line"
 
       Remember: Keep it simple, no complex SQL, exact JSON format only, use ORDER BY with numbers not aliases.
     BASE_PROMPT
@@ -207,18 +279,20 @@ module SalesforceBedrockAiQueryProcessor
     result
   rescue JSON::ParserError => e
     Rails.logger.error "JSON parsing failed: #{e.message}"
-    Rails.logger.info "Attempting regex extraction..."
-
     extracted = extract_with_regex(cleaned_response)
-    Rails.logger.info "Regex extracted: #{extracted.inspect}"
-
     extracted || raise(JSON::ParserError, "Could not parse AI response")
   end
 
   def clean_response(response)
     cleaned = response.strip
     cleaned = cleaned[1...-1] if cleaned.start_with?('"') && cleaned.end_with?('"')
-    cleaned.gsub('\\n', "\n").gsub('\\r', "\r").gsub('\\t', "\t").gsub('\\"', '"').gsub("\\\\", "\\")
+
+    cleaned = cleaned.gsub(/\r\n|\r|\n/, " ")  # Replace all types of newlines with spaces
+    cleaned = cleaned.gsub(/\s+/, " ")         # Replace multiple spaces with single space
+    cleaned = cleaned.gsub('\\"', '"')         # Unescape quotes
+    cleaned = cleaned.gsub("\\\\", "\\")       # Unescape backslashes
+
+    cleaned.strip
   end
 
   def extract_with_regex(response)
@@ -308,14 +382,19 @@ module SalesforceBedrockAiQueryProcessor
     ActiveRecord::Base.connection.execute("SET statement_timeout = 15000")
     result = ActiveRecord::Base.connection.exec_query(sql)
     result.to_a
+  rescue => e
+    Rails.logger.error "SQL execution error: #{e.message} | SQL: #{sql}"
+    raise
   end
 
   def handle_conversational_query(user_query, app_type, chat_service)
+    Rails.logger.info "=== HANDLING CONVERSATIONAL QUERY ==="
     conversation_context = chat_service&.build_context_for_prompt(app_type) || ""
 
     conversational_prompt = build_conversational_prompt(user_query, app_type, conversation_context)
 
     ai_response = call_bedrock_api_conversational(conversational_prompt)
+    Rails.logger.info "Conversational AI Response: #{ai_response}"
 
     chat_service&.add_conversational_exchange(user_query, ai_response)
 
@@ -332,7 +411,8 @@ module SalesforceBedrockAiQueryProcessor
       }
     }
   rescue => e
-    Rails.logger.error "Conversational AI Error: #{e.message}"
+    Rails.logger.error "=== CONVERSATIONAL AI ERROR ==="
+    Rails.logger.error "Error: #{e.message}"
     { error: "Sorry, I couldn't process your question. Please try rephrasing it." }
   end
 

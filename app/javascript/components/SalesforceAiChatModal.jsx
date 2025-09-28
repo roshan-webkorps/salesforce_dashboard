@@ -1,6 +1,6 @@
-// app/javascript/components/SalesforceAiChatModal.jsx - WORKING VERSION
+// app/javascript/components/SalesforceAiChatModal.jsx - UPDATED WITH LINE CHART SUPPORT
 import React, { useState, useRef, useEffect } from 'react'
-import { Bar, Doughnut } from 'react-chartjs-2'
+import { Bar, Doughnut, Line } from 'react-chartjs-2'
 import salesforceChatApiService from './SalesforceChatApiService'
 
 const SalesforceAiChatModal = ({ isOpen, onClose, onQuery, onNewTopic }) => {
@@ -120,7 +120,7 @@ const SalesforceAiChatModal = ({ isOpen, onClose, onQuery, onNewTopic }) => {
           position: 'top',
         },
       },
-      scales: chartType === 'bar' ? {
+      scales: chartType === 'bar' || chartType === 'line' ? {
         y: {
           beginAtZero: true
         }
@@ -137,6 +137,12 @@ const SalesforceAiChatModal = ({ isOpen, onClose, onQuery, onNewTopic }) => {
         return (
           <div style={containerStyle}>
             <Bar data={data} options={chartOptions} />
+          </div>
+        )
+      case 'line':
+        return (
+          <div style={containerStyle}>
+            <Line data={data} options={chartOptions} />
           </div>
         )
       case 'pie':

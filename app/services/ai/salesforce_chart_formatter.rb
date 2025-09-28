@@ -8,7 +8,7 @@ module Ai
       description = ai_response["description"] || "Query Results"
 
       formatted_data = case chart_type
-      when "bar"
+      when "bar", "line"
         format_for_bar_chart(results)
       when "pie"
         format_for_pie_chart(results)
@@ -121,6 +121,11 @@ module Ai
       return value.to_s if value.nil?
 
       label = value.to_s
+
+      if label.match?(/^\d{4}-\d{2}$/) || label.match?(/^[A-Za-z]{3}\s\d{4}$/)
+        return label
+      end
+
       label = label.gsub(/[-_]/, " ").titleize if label.include?("-") || label.include?("_")
       label
     end
