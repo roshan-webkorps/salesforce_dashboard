@@ -1,13 +1,19 @@
 # app/controllers/salesforce_dashboard_controller.rb
 class SalesforceDashboardController < ApplicationController
+  include SalesforceBedrockAiQueryProcessor
+
   skip_before_action :verify_authenticity_token, only: [ :ai_query, :reset_chat ]
+
+  before_action :initialize_chat_service, only: [ :ai_query, :reset_chat ]
 
   def index
     # Renders the main React app
   end
 
   def api_data
-    timeframe = params[:timeframe] || "24h"  # Default to 6 months
+    session.delete(:chat_service) if request.get? && request.path == "/api/salesforce"
+
+    timeframe = params[:timeframe] || "24h"  # Default to 24h
     app_type = params[:app_type] || "legacy"  # Default to legacy
     timeframe_start = calculate_timeframe_start(timeframe)
 
@@ -56,8 +62,8 @@ class SalesforceDashboardController < ApplicationController
     end
 
     begin
-      # Placeholder for AI functionality
-      result = { response: "AI functionality will be implemented soon!" }
+      result = process_salesforce_bedrock_ai_query(user_query, app_type, @chat_service)
+
       render json: result
     rescue => e
       Rails.logger.error "AI Query Error: #{e.message}"
@@ -68,6 +74,9 @@ class SalesforceDashboardController < ApplicationController
   end
 
   def reset_chat
+    session.delete(:chat_service)
+    @chat_service = Ai::SalesforceChatService.new
+
     render json: { success: true, message: "Chat context reset" }
   end
 
@@ -76,12 +85,13 @@ class SalesforceDashboardController < ApplicationController
       status: "ok",
       timestamp: Time.current,
       database: database_status,
-      salesforce_connection: "configured"
+      salesforce_connection: "configured",
+      aws_bedrock: ENV["AWS_ACCESS_KEY_ID"].present? ? "configured" : "missing"
     }
   end
 
   def chat_status
-    has_context = false  # Placeholder until AI is implemented
+    has_context = session[:chat_service].present? && !session[:chat_service].empty?
     render json: { has_context: has_context }
   end
 
@@ -124,5 +134,43 @@ class SalesforceDashboardController < ApplicationController
     "connected"
   rescue
     "disconnected"
+  end
+
+  def initialize_chat_service
+    if session[:chat_service] && !session[:chat_service].empty?
+      @chat_service = deserialize_chat_service(session[:chat_service])
+    else
+      @chat_service = Ai::SalesforceChatService.new
+    end
+  rescue => e
+    Rails.logger.error "Chat service initialization error: #{e.message}"
+    @chat_service = Ai::SalesforceChatService.new
+  end
+
+  def serialize_chat_service(chat_service)
+    context = chat_service.data_context || {}
+    {
+      sales_reps: (context[:sales_reps] || context["sales_reps"] || []).first(3),
+      accounts: (context[:accounts] || context["accounts"] || []).first(3),
+      opportunities: (context[:opportunities] || context["opportunities"] || []).first(3),
+      leads: (context[:leads] || context["leads"] || []).first(3),
+      cases: (context[:cases] || context["cases"] || []).first(3)
+    }.compact
+  end
+
+  def deserialize_chat_service(serialized_data)
+    chat_service = Ai::SalesforceChatService.new
+    if serialized_data&.any?
+      chat_service.instance_variable_set(:@data_context, serialized_data.symbolize_keys)
+    end
+    chat_service
+  end
+
+  after_action :update_chat_session, only: [ :ai_query ]
+
+  def update_chat_session
+    if @chat_service
+      session[:chat_service] = serialize_chat_service(@chat_service)
+    end
   end
 end

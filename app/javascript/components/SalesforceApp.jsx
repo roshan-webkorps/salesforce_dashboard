@@ -1,4 +1,4 @@
-// app/javascript/components/SalesforceApp.jsx - Fixed header alignment
+// app/javascript/components/SalesforceApp.jsx - Updated with AI Chat
 import React, { useState, useEffect } from 'react'
 import {
   Chart as ChartJS,
@@ -26,6 +26,8 @@ import {
   CasePriorityChart
 } from './SalesforceChartComponents'
 import { formatCurrency, formatNumber } from './SalesforceChartDataHelpers'
+import SalesforceAiChatModal from './SalesforceAiChatModal'
+import salesforceChatApiService from './SalesforceChatApiService'
 
 ChartJS.register(
   CategoryScale,
@@ -46,6 +48,8 @@ const SalesforceApp = () => {
   const [error, setError] = useState(null)
   const [timeframe, setTimeframe] = useState('24h')
   const [appType, setAppType] = useState('legacy')
+  
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false)
 
   const timeframeOptions = [
     { value: '24h', label: '24 Hours' },
@@ -98,6 +102,34 @@ const SalesforceApp = () => {
     setAppType(newAppType)
   }
 
+  const handleOpenChat = () => {
+    setIsChatModalOpen(true)
+  }
+
+  const handleCloseChat = () => {
+    setIsChatModalOpen(false)
+  }
+
+  const handleAiQuery = async (query, options = {}) => {
+    try {
+      const currentAppType = options.appType || appType
+      const result = await salesforceChatApiService.sendQuery(query, currentAppType)
+      return result
+    } catch (error) {
+      console.error('AI Query Error:', error)
+      throw error
+    }
+  }
+
+  const handleNewTopic = async () => {
+    try {
+      await salesforceChatApiService.resetChat()
+    } catch (error) {
+      console.error('Reset Chat Error:', error)
+      throw error
+    }
+  }
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -128,14 +160,15 @@ const SalesforceApp = () => {
           </div>
           
           <div className="header-center">
-            <button className="open-chat-btn">
+            <button className="open-chat-btn" onClick={handleOpenChat}>
               <span className="search-icon">🔍</span>
               Ask AI about your sales data...
             </button>
           </div>
           
           <div className="header-right">
-            {/* <div className="app-type-selector">
+            {/* Uncomment if you want app type selector
+            <div className="app-type-selector">
               <label htmlFor="appType">App Type:</label>
               <select 
                 id="appType"
@@ -149,7 +182,8 @@ const SalesforceApp = () => {
                   </option>
                 ))}
               </select>
-            </div> */}
+            </div>
+            */}
             
             <div className="timeframe-selector">
               <label htmlFor="timeframe">Timeframe:</label>
@@ -239,6 +273,13 @@ const SalesforceApp = () => {
           </div>
         </div>
       </main>
+
+      <SalesforceAiChatModal
+        isOpen={isChatModalOpen}
+        onClose={handleCloseChat}
+        onQuery={handleAiQuery}
+        onNewTopic={handleNewTopic}
+      />
     </div>
   )
 }
