@@ -16,7 +16,7 @@ class BaseSalesforceSyncService
     }
 
     Rails.logger.info "#{self.class.name} data sync completed"
-    build_summary(results)
+    results
   end
 
   def sync_users(since = 1.year.ago)
@@ -279,16 +279,5 @@ class BaseSalesforceSyncService
     return Date.current + 90.days unless created_date
 
     created_date + 90.days
-  end
-
-  def build_summary(results)
-    {
-      users: User.where(app_type: get_app_type).count,
-      accounts: Account.where(app_type: get_app_type).count,
-      opportunities: Opportunity.where(app_type: get_app_type).count,
-      leads: Lead.where(app_type: get_app_type).count,
-      cases: Case.where(app_type: get_app_type).count,
-      sync_results: results
-    }
   end
 end
