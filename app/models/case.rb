@@ -13,6 +13,9 @@ class Case < ApplicationRecord
   scope :with_account, -> { joins(:account) }
   scope :with_owner, -> { joins(:owner) }
 
+  # Add callback for better data quality
+  before_save :set_defaults
+
   def resolution_time_days
     return nil unless closed_date && salesforce_created_date
     (closed_date.to_date - salesforce_created_date.to_date).to_i
@@ -20,5 +23,25 @@ class Case < ApplicationRecord
 
   def is_open?
     ![ "Closed", "Solved" ].include?(status)
+  end
+
+  def is_overdue?
+    return false unless is_open?
+    return false unless salesforce_created_date
+
+    days_open = (Date.current - salesforce_created_date.to_date).to_i
+    case priority
+    when "High", "Critical" then days_open > 1
+    when "Medium" then days_open > 3
+    else days_open > 7
+    end
+  end
+
+  private
+
+  def set_defaults
+    self.status ||= "New"
+    self.priority ||= "Medium"
+    self.case_type ||= "Question"
   end
 end

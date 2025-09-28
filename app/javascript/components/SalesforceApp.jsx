@@ -1,4 +1,4 @@
-// app/javascript/components/SalesforceApp.jsx
+// app/javascript/components/SalesforceApp.jsx - Fixed header alignment
 import React, { useState, useEffect } from 'react'
 import {
   Chart as ChartJS,
@@ -13,15 +13,17 @@ import {
   Legend,
   Filler
 } from 'chart.js'
-// import AiChatModal from './AiChatModal'  // Add when implementing AI chat
-// import chatApiService from './chatApiService'  // Add when implementing AI chat
 import {
-  RevenueByRepChart,
-  SalesPipelineChart,
-  MonthlyRevenueTrendChart,
-  RevenueByIndustryChart,
-  CasePriorityChart,
-  AccountRevenueDistributionChart
+  OpportunityCreationTrendChart,
+  WinRateAnalysisChart,
+  AccountAcquisitionRevenueChart,
+  PipelineHealthChart,
+  DealSizeDistributionChart,
+  LeadSourcePerformanceChart,
+  RevenueTrendChart,
+  AccountSegmentDistributionChart,
+  LeadStatusFunnelChart,
+  CasePriorityChart
 } from './SalesforceChartComponents'
 import { formatCurrency, formatNumber } from './SalesforceChartDataHelpers'
 
@@ -42,11 +44,8 @@ const SalesforceApp = () => {
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [timeframe, setTimeframe] = useState('24h')  // Default to 24 hours
+  const [timeframe, setTimeframe] = useState('24h')
   const [appType, setAppType] = useState('legacy')
-  
-  // AI Chat states - Add when implementing AI chat
-  // const [isChatOpen, setIsChatOpen] = useState(false)
 
   const timeframeOptions = [
     { value: '24h', label: '24 Hours' },
@@ -68,13 +67,23 @@ const SalesforceApp = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
+      setError(null)
+      
       const response = await fetch(`/api/salesforce?timeframe=${timeframe}&app_type=${appType}`)
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch salesforce dashboard data')
+        throw new Error(`HTTP ${response.status}: Failed to fetch dashboard data`)
       }
+      
       const data = await response.json()
+      
+      if (data.error) {
+        throw new Error(data.error)
+      }
+      
       setDashboardData(data)
     } catch (err) {
+      console.error('Dashboard fetch error:', err)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -89,19 +98,11 @@ const SalesforceApp = () => {
     setAppType(newAppType)
   }
 
-  // AI Chat handlers - Add when implementing AI chat
-  // const handleOpenChat = () => {
-  //   setIsChatOpen(true)
-  // }
-
-  // const handleCloseChat = () => {
-  //   setIsChatOpen(false)
-  // }
-
   if (loading) {
     return (
       <div className="loading-container">
         <h2>Loading Salesforce Dashboard...</h2>
+        <p>Fetching sales growth metrics...</p>
       </div>
     )
   }
@@ -109,10 +110,10 @@ const SalesforceApp = () => {
   if (error) {
     return (
       <div className="error-container">
-        <h2>Error</h2>
+        <h2>Error Loading Dashboard</h2>
         <p>{error}</p>
         <button onClick={fetchDashboardData} className="retry-btn">
-          Retry
+          Retry Loading
         </button>
       </div>
     )
@@ -122,23 +123,19 @@ const SalesforceApp = () => {
     <div className="app">
       <header className="app-header">
         <div className="header-content">
-          <div className="header-text">
+          <div className="header-left">
             <h1>Salesforce Dashboard</h1>
           </div>
           
-          {/* AI Chat Button - Add when implementing AI chat */}
-          <div className="search-section">
-            <button 
-              className="open-chat-btn"
-              // onClick={handleOpenChat}
-            >
+          <div className="header-center">
+            <button className="open-chat-btn">
               <span className="search-icon">🔍</span>
               Ask AI about your sales data...
             </button>
           </div>
           
-          <div className="controls-section">
-            <div className="app-type-selector">
+          <div className="header-right">
+            {/* <div className="app-type-selector">
               <label htmlFor="appType">App Type:</label>
               <select 
                 id="appType"
@@ -152,7 +149,7 @@ const SalesforceApp = () => {
                   </option>
                 ))}
               </select>
-            </div>
+            </div> */}
             
             <div className="timeframe-selector">
               <label htmlFor="timeframe">Timeframe:</label>
@@ -209,35 +206,39 @@ const SalesforceApp = () => {
         )}
 
         <div className="charts-section">
-          <h2>Sales Analytics Overview</h2>
+          <h2 className="charts-title">Sales Growth Analytics</h2>
           
-          {/* Row 1: Revenue Performance */}
+          {/* Row 1: Opportunity Trends & Performance Analysis */}
           <div className="charts-grid-two">
-            <RevenueByRepChart dashboardData={dashboardData} />
-            <SalesPipelineChart dashboardData={dashboardData} />
+            <OpportunityCreationTrendChart dashboardData={dashboardData} />
+            <WinRateAnalysisChart dashboardData={dashboardData} />
           </div>
 
-          {/* Row 2: Revenue Trends */}
+          {/* Row 2: Growth Trends (Account + Opportunity, Revenue) */}
           <div className="charts-grid-two">
-            <MonthlyRevenueTrendChart dashboardData={dashboardData} />
-            <AccountRevenueDistributionChart dashboardData={dashboardData} />
+            <AccountAcquisitionRevenueChart dashboardData={dashboardData} />
+            <RevenueTrendChart dashboardData={dashboardData} />
           </div>
 
-          {/* Row 3: Revenue Analysis */}
+          {/* Row 3: Pipeline & Lead Analysis */}
           <div className="charts-grid-two">
-            <RevenueByIndustryChart dashboardData={dashboardData} />
+            <PipelineHealthChart dashboardData={dashboardData} />
+            <LeadSourcePerformanceChart dashboardData={dashboardData} />
+          </div>
+
+          {/* Row 4: Deal & Funnel Analysis */}
+          <div className="charts-grid-two">
+            <DealSizeDistributionChart dashboardData={dashboardData} />
+            <LeadStatusFunnelChart dashboardData={dashboardData} />
+          </div>
+
+          {/* Row 5: Customer & Support Analysis */}
+          <div className="charts-grid-two">
+            <AccountSegmentDistributionChart dashboardData={dashboardData} />
             <CasePriorityChart dashboardData={dashboardData} />
           </div>
         </div>
       </main>
-      
-      {/* AI Chat Modal - Add when implementing AI chat */}
-      {/* <AiChatModal
-        isOpen={isChatOpen}
-        onClose={handleCloseChat}
-        onQuery={handleChatQuery}
-        onNewTopic={handleNewTopic}
-      /> */}
     </div>
   )
 }

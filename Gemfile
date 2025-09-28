@@ -32,6 +32,7 @@ gem "cssbundling-rails"     # For CSS bundling
 gem "jsbundling-rails"      # For JavaScript bundling with esbuild/webpack
 gem "httparty"
 gem "dotenv-rails"
+gem "pry-rails"
 # Reduces boot times through caching; required in config/boot.rb
 gem "bootsnap", require: false
 

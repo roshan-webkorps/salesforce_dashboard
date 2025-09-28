@@ -59,23 +59,37 @@ class BaseSalesforceSyncService
   def sync_entity(entity_type, data)
     return data if data.is_a?(Hash) && data[:error]
 
-    created = updated = 0
+    created = updated = errors = 0
+    error_details = []
 
     data.each do |record_data|
       next unless should_sync_record?(record_data, entity_type)
 
-      record = find_or_build_record(entity_type.classify.constantize, record_data["Id"])
-      was_new_record = record.new_record?
+      begin
+        record = find_or_build_record(entity_type.classify.constantize, record_data["Id"])
+        was_new_record = record.new_record?
 
-      assign_attributes(record, record_data, entity_type)
+        assign_attributes(record, record_data, entity_type)
 
-      if record.save
-        was_new_record ? created += 1 : updated += 1
+        if record.valid?
+          record.save!
+          was_new_record ? created += 1 : updated += 1
+        else
+          errors += 1
+          error_details << "#{entity_type} #{record_data['Id']}: #{record.errors.full_messages.join(', ')}"
+          Rails.logger.warn "Validation failed for #{entity_type} #{record_data['Id']}: #{record.errors.full_messages}"
+        end
+      rescue => e
+        errors += 1
+        error_details << "#{entity_type} #{record_data['Id']}: #{e.message}"
+        Rails.logger.error "Error syncing #{entity_type} #{record_data['Id']}: #{e.message}"
       end
     end
 
-    Rails.logger.info "#{entity_type.pluralize.capitalize}: #{created} created, #{updated} updated"
-    { created: created, updated: updated, total: created + updated }
+    Rails.logger.info "#{entity_type.pluralize.capitalize}: #{created} created, #{updated} updated, #{errors} errors"
+    Rails.logger.warn "Error details: #{error_details.join('; ')}" if errors > 0
+
+    { created: created, updated: updated, errors: errors, total: created + updated }
   end
 
   def should_sync_record?(record_data, entity_type)
@@ -125,13 +139,13 @@ class BaseSalesforceSyncService
       owner_salesforce_id: data["OwnerId"],
       salesforce_created_date: parse_datetime(data["CreatedDate"]),
       arr: parse_decimal(data["ARR__c"]),
-      annual_revenue: parse_decimal(data["AnnualRevenue"]),
+      annual_revenue: parse_decimal(data["AnnualRevenue"]), # Use standard SF field
       mrr: parse_decimal(data["MRR__c"]),
       amount_paid: parse_decimal(data["Amount_Paid__c"]),
-      status: data["Asset_Panda_Status__c"],
+      status: data["Asset_Panda_Status__c"] || data["Type"], # Fallback to Type
       industry: data["Industry"],
-      segment: nil,
-      employee_count: nil
+      segment: determine_account_segment(data), # New helper method
+      employee_count: data["NumberOfEmployees"] # Standard SF field
     )
   end
 
@@ -149,7 +163,7 @@ class BaseSalesforceSyncService
       name: data["Name"].presence || "Unknown Opportunity",
       account_salesforce_id: data["AccountId"],
       owner_salesforce_id: data["OwnerId"],
-      stage_name: data["StageName"] || "Unknown",
+      stage_name: data["StageName"] || "Prospecting",
       amount: amount,
       probability: probability,
       expected_revenue: expected_revenue,
@@ -184,25 +198,47 @@ class BaseSalesforceSyncService
     case_record.assign_attributes(
       account_salesforce_id: data["AccountId"],
       owner_salesforce_id: data["OwnerId"],
-      status: data["Status"],
-      priority: data["Priority"],
-      case_type: data["Type"],
+      status: data["Status"] || "New", # Better default
+      priority: data["Priority"] || "Medium", # Better default
+      case_type: data["Type"] || "Question", # Better default
       salesforce_created_date: parse_datetime(data["CreatedDate"]),
       closed_date: parse_datetime(data["ClosedDate"])
     )
   end
 
   def extract_user_role(user_data)
-    role_name = user_data.dig("UserRole", "Name")
+    # Enhanced role extraction with better fallbacks
+    role_sources = [
+      user_data["Title"],
+      user_data.dig("UserRole", "Name"),
+      user_data.dig("Profile", "Name"),
+      user_data["Department"],
+      user_data["Division"]
+    ]
+
+    role_name = role_sources.find(&:present?)
+
     return "Unknown" unless role_name
 
-    case role_name.downcase
-    when /account.executive/, /ae/ then "Account Executive"
-    when /sdr/, /sales.development/ then "SDR"
-    when /manager/, /director/ then "Manager"
-    when /support/, /success/ then "Support"
-    else role_name
+    # Clean and standardize role names
+    cleaned_role = role_name.strip.humanize.titleize
+
+    # Map common variations to standard roles
+    role_mapping = {
+      /account.executive|ae/i => "Account Executive",
+      /sales.development|sdr|bdr/i => "Sales Development Representative",
+      /customer.success|cs/i => "Customer Success Manager",
+      /sales.manager|sales.director/i => "Sales Manager",
+      /marketing/i => "Marketing",
+      /support|customer.support/i => "Customer Support",
+      /engineer|developer/i => "Engineer"
+    }
+
+    role_mapping.each do |pattern, standard_role|
+      return standard_role if role_name.match?(pattern)
     end
+
+    cleaned_role
   end
 
   def parse_datetime(datetime_string)
@@ -226,6 +262,23 @@ class BaseSalesforceSyncService
     decimal_value.to_s.gsub(/[^\d.-]/, "").to_f
   rescue
     nil
+  end
+
+  def determine_account_segment(data)
+    employee_count = data["NumberOfEmployees"].to_i
+    annual_revenue = parse_decimal(data["AnnualRevenue"]) || 0
+
+    return "Enterprise" if employee_count > 1000 || annual_revenue > 10_000_000
+    return "Mid-Market" if employee_count > 100 || annual_revenue > 1_000_000
+    return "SMB" if employee_count > 10 || annual_revenue > 100_000
+    "Startup"
+  end
+
+  def calculate_default_close_date(data)
+    created_date = parse_date(data["CreatedDate"])
+    return Date.current + 90.days unless created_date
+
+    created_date + 90.days
   end
 
   def build_summary(results)

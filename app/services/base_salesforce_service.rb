@@ -133,9 +133,9 @@ class BaseSalesforceService
   def account_fields
     %w[
       Id Name Type Industry AnnualRevenue BillingCountry BillingState
-      BillingCity Phone OwnerId CreatedDate LastModifiedDate
+      BillingCity Phone OwnerId Owner.Name CreatedDate LastModifiedDate
       Asset_Panda_Status__c ARR__c MRR__c Records_Bought__c
-      Amount_Paid__c Account_Expires__c Valid_Subscription__c
+      Amount_Paid__c Account_Expires__c Valid_Subscription__c NumberOfEmployees
     ].join(", ")
   end
 
@@ -149,8 +149,10 @@ class BaseSalesforceService
 
   def lead_fields
     %w[
-      Id FirstName LastName Company Email Phone Status LeadSource
-      OwnerId CreatedDate LastModifiedDate IsConverted ConvertedDate Industry
+      Id FirstName LastName Name Company Email Phone Status LeadSource
+      OwnerId Owner.Name CreatedDate LastModifiedDate IsConverted 
+      ConvertedDate ConvertedAccountId ConvertedContactId ConvertedOpportunityId
+      Industry Rating Title City State Country
     ].join(", ")
   end
 
@@ -163,8 +165,9 @@ class BaseSalesforceService
 
   def user_fields
     %w[
-      Id Name Email IsActive UserRole.Name ManagerId Phone
-      LastLoginDate CreatedDate
+      Id Name Email IsActive UserRole.Name UserRole.Id Title Profile.Name
+      Profile.Id ManagerId Manager.Name Phone LastLoginDate CreatedDate
+      Department Division CompanyName
     ].join(", ")
   end
 end

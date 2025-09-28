@@ -16,4 +16,30 @@ class User < ApplicationRecord
   scope :active, -> { where(is_active: true) }
   scope :by_app_type, ->(type) { where(app_type: type) }
   scope :by_role, ->(role) { where(role: role) }
+  scope :sales_users, -> { where(role: [ "Account Executive", "Sales Development Representative", "Sales Manager" ]) }
+
+  # Add callback for data quality
+  before_save :set_defaults
+
+  def total_revenue
+    owned_opportunities.closed_won.sum(:amount) || 0
+  end
+
+  def total_pipeline
+    owned_opportunities.open.sum(:amount) || 0
+  end
+
+  def win_rate
+    total_closed = owned_opportunities.where(is_closed: true).count
+    return 0 if total_closed.zero?
+
+    total_won = owned_opportunities.closed_won.count
+    (total_won.to_f / total_closed * 100).round(1)
+  end
+
+  private
+
+  def set_defaults
+    self.role ||= "Unknown"
+  end
 end
