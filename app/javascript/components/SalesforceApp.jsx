@@ -174,7 +174,7 @@ const SalesforceApp = () => {
         {dashboardData?.summary && (
           <div className="stats-grid">
             <div className="stat-card">
-              <h3>Active Sales Reps</h3>
+              <h3>Total Users</h3>
               <p className="stat-number">{formatNumber(dashboardData.summary.total_sales_reps)}</p>
               <p className="stat-label">Contributors</p>
             </div>
