@@ -33,6 +33,7 @@ gem "jsbundling-rails"      # For JavaScript bundling with esbuild/webpack
 gem "httparty"
 gem "dotenv-rails"
 gem "pry-rails"
+gem "aws-sdk-bedrockruntime"
 # Reduces boot times through caching; required in config/boot.rb
 gem "bootsnap", require: false
 
