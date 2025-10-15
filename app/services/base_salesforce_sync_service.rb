@@ -21,7 +21,7 @@ class BaseSalesforceSyncService
 
   def sync_users(since = 1.year.ago)
     Rails.logger.info "Syncing users..."
-    sync_entity("user", @salesforce.fetch_users(since))
+    sync_entity("user", @salesforce.fetch_users(5.years.ago))
   end
 
   def sync_accounts(since = 1.year.ago)
@@ -94,6 +94,7 @@ class BaseSalesforceSyncService
 
   def should_sync_record?(record_data, entity_type)
     return should_sync_user?(record_data) if entity_type == "user"
+    return should_sync_opportunity?(record_data) if entity_type == "opportunity"
     true
   end
 
@@ -102,6 +103,21 @@ class BaseSalesforceSyncService
 
     email = user_data["Email"]
     return false if email&.include?("noreply") || email&.include?("system")
+
+    # Only sync Standard users (internal employees)
+    user_type = user_data["UserType"]
+    return false unless user_type == "Standard"
+
+    # Additional safety check: exclude customer/partner profiles
+    profile_name = user_data.dig("Profile", "Name") || ""
+    return false if profile_name.match?(/customer|partner|community|portal/i)
+
+    true
+  end
+
+  def should_sync_opportunity?(opportunity_data)
+    is_test = opportunity_data["Test_Opportunity__c"]
+    return false if is_test == true
 
     true
   end
@@ -173,7 +189,10 @@ class BaseSalesforceSyncService
       is_closed: data["IsClosed"] || false,
       is_won: data["IsWon"] || false,
       opportunity_type: data["Type"],
-      lead_source: data["LeadSource"]
+      lead_source: data["LeadSource"],
+      renewal_date: parse_date(data["Renewal_Date__c"]),
+      is_test_opportunity: data["Test_Opportunity__c"] || false,
+      record_type_name: data["Record_Type_Name__c"]
     )
   end
 

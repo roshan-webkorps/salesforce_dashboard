@@ -98,7 +98,11 @@ class BaseSalesforceService
     end
 
     where_clauses << "Id > '#{last_id}'" if last_id
-    where_clauses << "IsActive = true" if object_type == "User"
+
+    if object_type == "User"
+      where_clauses << "IsActive = true"
+      where_clauses << "UserType = 'Standard'"  # Only internal users
+    end
 
     where_clause = where_clauses.any? ? "WHERE #{where_clauses.join(' AND ')}" : ""
 
@@ -143,14 +147,15 @@ class BaseSalesforceService
     %w[
       Id Name AccountId OwnerId StageName Amount CloseDate CreatedDate
       LastModifiedDate IsClosed IsWon Type LeadSource Probability
-      ForecastCategory ForecastCategoryName
+      ForecastCategory ForecastCategoryName Renewal_Date__c
+      Test_Opportunity__c Record_Type_Name__c
     ].join(", ")
   end
 
   def lead_fields
     %w[
       Id FirstName LastName Name Company Email Phone Status LeadSource
-      OwnerId Owner.Name CreatedDate LastModifiedDate IsConverted 
+      OwnerId Owner.Name CreatedDate LastModifiedDate IsConverted
       ConvertedDate ConvertedAccountId ConvertedContactId ConvertedOpportunityId
       Industry Rating Title City State Country
     ].join(", ")
@@ -165,7 +170,7 @@ class BaseSalesforceService
 
   def user_fields
     %w[
-      Id Name Email IsActive UserRole.Name UserRole.Id Title Profile.Name
+      Id Name Email IsActive UserType UserRole.Name UserRole.Id Title Profile.Name
       Profile.Id ManagerId Manager.Name Phone LastLoginDate CreatedDate
       Department Division CompanyName
     ].join(", ")

@@ -36,18 +36,43 @@ module SalesforceAnalytics
 
   # 2. Win Rate Analysis
   def get_win_rate_analysis_data(since)
-    closed_opps = scoped_opportunities.where(is_closed: true).where("close_date >= ?", since)
-    return default_chart_data(:pie, "No Data") if closed_opps.empty?
+    get_sales_rep_win_rates_data(since)
+  end
 
-    won = closed_opps.where(is_won: true).count
-    lost = closed_opps.where(is_won: false).count
+  def get_sales_rep_win_rates_data(since)
+    closed_opps = scoped_opportunities
+      .joins("INNER JOIN users ON users.salesforce_id = opportunities.owner_salesforce_id")
+      .where(is_closed: true)
+      .where("close_date >= ?", since)
+      .where(is_test_opportunity: false)
+      .group("users.name")
+      .select(
+        "users.name as rep_name",
+        "COUNT(*) as total_deals",
+        "COUNT(CASE WHEN opportunities.is_won = true THEN 1 END) as won_deals"
+      )
+      .having("COUNT(*) >= 5") # Only show reps with at least 5 closed deals
+
+    # Order in Ruby instead of SQL to avoid Arel.sql requirement
+    results = closed_opps.to_a.sort_by do |record|
+      -(record.won_deals.to_f / record.total_deals.to_f)
+    end.first(10)
+
+    return default_chart_data(:bar, "No Data") if results.empty?
+
+    # Calculate win rates
+    data = results.map do |record|
+      win_rate = (record.won_deals.to_f / record.total_deals.to_f * 100).round(1)
+      [ record.rep_name, win_rate ]
+    end.reverse # Reverse for horizontal bar (highest at top)
 
     {
-      labels: [ "Won", "Lost" ],
+      labels: data.map(&:first),
       datasets: [ {
-        data: [ won, lost ],
-        backgroundColor: [ "rgba(46, 204, 113, 0.6)", "rgba(231, 76, 60, 0.6)" ],
-        borderColor: [ "rgba(46, 204, 113, 1)", "rgba(231, 76, 60, 1)" ],
+        label: "Win Rate (%)",
+        data: data.map(&:last),
+        backgroundColor: "rgba(46, 204, 113, 0.6)",
+        borderColor: "rgba(46, 204, 113, 1)",
         borderWidth: 1
       } ]
     }
@@ -84,14 +109,30 @@ module SalesforceAnalytics
 
   # 5-10. Other single model metrics
   def get_pipeline_health_data(since)
-    data = scoped_opportunities.where(is_closed: false).where("salesforce_created_date >= ?", since).group(:stage_name).count
-    return default_chart_data(:bar, "No Data") if data.empty?
-    build_chart_data(:bar, data.to_a, "Opportunities")
+    pipeline_value = scoped_opportunities
+      .where(is_closed: false)
+      .where(is_test_opportunity: false)
+      .where("salesforce_created_date >= ?", since)
+      .where.not(amount: nil)
+      .group(:stage_name)
+      .sum(:amount)
+
+    return default_chart_data(:bar, "No Data") if pipeline_value.empty?
+
+    # Sort by amount descending
+    sorted_data = pipeline_value.sort_by { |_, amount| -amount }
+
+    build_chart_data(:bar, sorted_data, "Pipeline Value ($)", single_color: "blue")
   end
 
   def get_deal_size_distribution_data(since)
-    won_opps = scoped_opportunities.where(is_won: true).where("close_date >= ?", since).where.not(amount: nil)
-    return default_chart_data(:bar, "No Data") if won_opps.empty?
+    won_opps = scoped_opportunities
+      .where(is_won: true)
+      .where(is_test_opportunity: false)
+      .where("close_date >= ?", since)
+      .where.not(amount: nil)
+
+    return default_chart_data(:pie, "No Data") if won_opps.empty?
 
     ranges = {
       "Small (< $5K)" => won_opps.where("amount < 5000").count,
@@ -100,14 +141,32 @@ module SalesforceAnalytics
       "Enterprise (> $100K)" => won_opps.where("amount >= 100000").count
     }.select { |_, count| count > 0 }
 
-    return default_chart_data(:bar, "No Data") if ranges.empty?
-    build_chart_data(:bar, ranges.to_a, "Number of Deals")
+    return default_chart_data(:pie, "No Data") if ranges.empty?
+
+    build_chart_data(:pie, ranges.to_a)
   end
 
   def get_lead_source_performance_data(since)
-    data = scoped_leads.where("salesforce_created_date >= ?", since).where.not(lead_source: [ nil, "", "Unknown" ]).group(:lead_source).count.sort_by { |_, count| -count }.first(8)
-    return default_chart_data(:pie, "No Data") if data.empty?
-    build_chart_data(:pie, data, nil, hide_legend: true)
+    lead_conversions = scoped_leads
+      .where("salesforce_created_date >= ?", since)
+      .where.not(lead_source: [ nil, "", "Unknown" ])
+      .group(:lead_source)
+      .select(
+        "lead_source",
+        "COUNT(*) as total_leads",
+        "COUNT(CASE WHEN is_converted = true THEN 1 END) as converted_leads"
+      )
+      .having("COUNT(*) >= 10") # Only show sources with at least 10 leads
+
+    return default_chart_data(:bar, "No Data") if lead_conversions.empty?
+
+    # Calculate conversion rates
+    data = lead_conversions.map do |record|
+      conversion_rate = (record.converted_leads.to_f / record.total_leads.to_f * 100).round(1)
+      [ record.lead_source, conversion_rate ]
+    end.sort_by { |_, rate| -rate }.first(8) # Top 8 sources
+
+    build_chart_data(:bar, data, "Conversion Rate (%)", single_color: "blue")  # Changed from "info" to "blue"
   end
 
   def get_account_segment_distribution_data(since)
@@ -126,6 +185,113 @@ module SalesforceAnalytics
     data = scoped_cases.where(status: "Open").where("salesforce_created_date >= ?", since).group(:priority).count
     return default_chart_data(:pie, "No Data") if data.empty?
     build_chart_data(:pie, data.to_a, nil, priority_colors: true)
+  end
+
+  def get_sales_rep_revenue_by_stage_data(since, timeframe = "24h")
+    # Calculate date range based on timeframe
+    start_date, end_date = calculate_date_range(since, timeframe)
+
+    # Query opportunities with renewal_date in the date range
+    opportunities = scoped_opportunities
+      .joins("INNER JOIN users ON users.salesforce_id = opportunities.owner_salesforce_id")  # Changed to INNER JOIN
+      .where(record_type_name: "Renewal")
+      .where(is_test_opportunity: false)
+      .where("renewal_date >= ? AND renewal_date <= ?", start_date, end_date)
+      .where.not(amount: nil)
+      .select(
+        "users.name as owner_name",
+        "opportunities.stage_name",
+        "SUM(opportunities.amount) as total_amount"
+      )
+      .group("users.name", "opportunities.stage_name")
+      .order("users.name")
+
+    return default_chart_data(:bar, "No Data") if opportunities.empty?
+
+    # Group data by sales rep
+    grouped_data = {}
+    opportunities.each do |opp|
+      owner_name = opp.owner_name || "Unknown"
+      stage_name = opp.stage_name || "Unknown Stage"
+      amount = opp.total_amount.to_f
+
+      grouped_data[owner_name] ||= {}
+      grouped_data[owner_name][stage_name] = amount
+    end
+
+    # Get all unique stages
+    all_stages = opportunities.map(&:stage_name).uniq.compact.sort
+
+    # Build datasets for each stage
+    datasets = all_stages.map.with_index do |stage, index|
+      {
+        label: stage,
+        data: grouped_data.keys.map { |rep| grouped_data[rep][stage] || 0 },
+        backgroundColor: stage_colors[index % stage_colors.length],
+        borderColor: stage_colors[index % stage_colors.length].gsub("0.6", "1"),
+        borderWidth: 1
+      }
+    end
+
+    {
+      labels: grouped_data.keys,
+      datasets: datasets
+    }
+  end
+
+  # 12. Top Sales Reps by Closed Won Revenue
+  def get_top_sales_reps_closed_won_data(since, timeframe = "24h")
+    start_date, end_date = calculate_date_range(since, timeframe)
+
+    top_reps = scoped_opportunities
+      .joins("INNER JOIN users ON users.salesforce_id = opportunities.owner_salesforce_id")
+      .where(is_closed: true, is_won: true)
+      .where("close_date >= ? AND close_date <= ?", start_date, end_date)
+      .where(is_test_opportunity: false)
+      .where.not(amount: nil)
+      .group("users.name")
+      .select("users.name as owner_name, SUM(opportunities.amount) as total_revenue")
+      .order("total_revenue DESC")
+      .limit(10)
+
+    return default_chart_data(:bar, "No Data") if top_reps.empty?
+
+    # Build chart data with BLUE color for revenue
+    labels = top_reps.map { |rep| rep.owner_name || "Unknown" }
+    data = top_reps.map { |rep| rep.total_revenue.to_f }
+
+    {
+      labels: labels,
+      datasets: [ {
+        label: "Revenue ($)",
+        data: data,
+        backgroundColor: "rgba(52, 152, 219, 0.6)",  # Blue color
+        borderColor: "rgba(52, 152, 219, 1)",        # Blue border
+        borderWidth: 1
+      } ]
+    }
+  end
+
+  # 13. Closed Won Revenue by Opportunity Type
+  def get_closed_won_by_type_data(since, timeframe = "24h")
+    start_date, end_date = calculate_date_range(since, timeframe)
+
+    # Query closed-won opportunities grouped by record type
+    revenue_by_type = scoped_opportunities
+      .where(is_closed: true, is_won: true)
+      .where("close_date >= ? AND close_date <= ?", start_date, end_date)
+      .where(is_test_opportunity: false)
+      .where.not(amount: nil)
+      .where.not(record_type_name: [ nil, "" ])
+      .group(:record_type_name)
+      .sum(:amount)
+
+    return default_chart_data(:pie, "No Data") if revenue_by_type.empty?
+
+    # Sort by revenue descending
+    sorted_data = revenue_by_type.sort_by { |_, amount| -amount }.to_h
+
+    build_chart_data(:pie, sorted_data.to_a)
   end
 
   # ============================================================================
@@ -294,6 +460,38 @@ module SalesforceAnalytics
       else "rgba(155, 89, 182, 0.6)"
       end
     end
+  end
+
+  def calculate_date_range(since, timeframe)
+    case timeframe
+    when "24h"
+      [ Time.current.beginning_of_day, Time.current.end_of_day ]
+    when "7d"
+      [ 7.days.ago.beginning_of_day, Time.current.end_of_day ]
+    when "1m"
+      [ Time.current.beginning_of_month, Time.current.end_of_month ]
+    when "6m"
+      [ 6.months.ago.beginning_of_month, Time.current.end_of_month ]
+    when "1y"
+      [ Time.current.beginning_of_year, Time.current.end_of_year ]
+    else
+      [ Time.current.beginning_of_month, Time.current.end_of_month ]
+    end
+  end
+
+  def stage_colors
+    [
+      "rgba(52, 152, 219, 0.6)",   # Blue
+      "rgba(46, 204, 113, 0.6)",   # Green
+      "rgba(241, 196, 15, 0.6)",   # Yellow
+      "rgba(231, 76, 60, 0.6)",    # Red
+      "rgba(155, 89, 182, 0.6)",   # Purple
+      "rgba(230, 126, 34, 0.6)",   # Orange
+      "rgba(26, 188, 156, 0.6)",   # Turquoise
+      "rgba(149, 165, 166, 0.6)",  # Gray
+      "rgba(52, 73, 94, 0.6)",     # Dark Blue
+      "rgba(192, 57, 43, 0.6)"     # Dark Red
+    ]
   end
 
   def build_monthly_account_revenue_data(since)

@@ -23,7 +23,10 @@ import {
   RevenueTrendChart,
   AccountSegmentDistributionChart,
   LeadStatusFunnelChart,
-  CasePriorityChart
+  CasePriorityChart,
+  SalesRepRevenueByStageChart,
+  TopSalesRepsClosedWonChart,
+  ClosedWonByTypeChart
 } from './SalesforceChartComponents'
 import { formatCurrency, formatNumber } from './SalesforceChartDataHelpers'
 import SalesforceAiChatModal from './SalesforceAiChatModal'
@@ -241,8 +244,19 @@ const SalesforceApp = () => {
 
         <div className="charts-section">
           <h2 className="charts-title">Sales Growth Analytics</h2>
-          
-          {/* Row 1: Opportunity Trends & Performance Analysis */}
+
+          {/* Row 6: Sales Rep Performance */}
+          <div className="charts-grid-full">
+            <SalesRepRevenueByStageChart dashboardData={dashboardData} />
+          </div>
+
+          {/* Row 2: Closed-Won Performance */}
+          <div className="charts-grid-two">
+            <TopSalesRepsClosedWonChart dashboardData={dashboardData} />
+            <ClosedWonByTypeChart dashboardData={dashboardData} />
+          </div>
+
+          {/* Row 3: Opportunity Trends & Performance Analysis */}
           <div className="charts-grid-two">
             <OpportunityCreationTrendChart dashboardData={dashboardData} />
             <WinRateAnalysisChart dashboardData={dashboardData} />
@@ -264,12 +278,6 @@ const SalesforceApp = () => {
           <div className="charts-grid-two">
             <DealSizeDistributionChart dashboardData={dashboardData} />
             <LeadStatusFunnelChart dashboardData={dashboardData} />
-          </div>
-
-          {/* Row 5: Customer & Support Analysis */}
-          <div className="charts-grid-two">
-            <AccountSegmentDistributionChart dashboardData={dashboardData} />
-            <CasePriorityChart dashboardData={dashboardData} />
           </div>
         </div>
       </main>

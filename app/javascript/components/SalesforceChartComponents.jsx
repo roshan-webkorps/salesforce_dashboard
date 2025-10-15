@@ -12,6 +12,9 @@ import {
   getAccountSegmentDistributionData,
   getLeadStatusFunnelData,
   getCasePriorityData,
+  getSalesRepRevenueByStageData,
+  getTopSalesRepsClosedWonData,
+  getClosedWonByTypeData,
   formatCurrency
 } from './SalesforceChartDataHelpers'
 
@@ -143,9 +146,12 @@ const pieChartOptions = {
           const value = context.parsed || 0
           const datasetLabel = context.chart.config.data.datasets[0].label || ''
           
-          const formattedValue = datasetLabel.includes('Revenue') || datasetLabel.includes('$')
-                                 ? formatCurrency(value) 
-                                 : value.toLocaleString()
+          // Check if this is a revenue/currency chart by looking at dataset label or checking if values are large
+          const isCurrency = datasetLabel.includes('Revenue') || 
+                            datasetLabel.includes('$') || 
+                            value >= 1000
+          
+          const formattedValue = isCurrency ? formatCurrency(value) : value.toLocaleString()
           return `${label}: ${formattedValue}`
         }
       }
@@ -177,15 +183,53 @@ export const OpportunityCreationTrendChart = ({ dashboardData }) => {
   )
 }
 
-// 2. Win Rate Analysis (Single model: Opportunity)
-export const WinRateAnalysisChart = ({ dashboardData }) => (
-  <div className="chart-container pie-chart-container">
-    <h3>Sales Performance - Win vs Loss rate for closed deals</h3>
-    <div className="pie-chart-wrapper">
-      <Doughnut data={getTopSalesRepsData(dashboardData)} options={pieChartOptions} />
+// 2. Sales Rep Win Rates (Horizontal Bar) - REPLACE EXISTING WinRateAnalysisChart
+export const WinRateAnalysisChart = ({ dashboardData }) => {
+  // Horizontal bar chart options with green color
+  const horizontalBarOptions = {
+    indexAxis: 'y', // Horizontal bars
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return `Win Rate: ${context.parsed.x}%`
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        max: 100,
+        ticks: {
+          font: { size: 10 },
+          callback: function(value) {
+            return value + '%'
+          }
+        }
+      },
+      y: {
+        ticks: {
+          font: { size: 10 }
+        }
+      }
+    }
+  }
+
+  return (
+    <div className="chart-container">
+      <h3>Sales Rep Win Rates - Close efficiency by rep (min 5 deals)</h3>
+      <div className="chart-with-legend">
+        <Bar data={getTopSalesRepsData(dashboardData)} options={horizontalBarOptions} />
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 // 3. Account Acquisition vs Revenue (Multi-model: Account + Opportunity)
 export const AccountAcquisitionRevenueChart = ({ dashboardData }) => {
@@ -211,35 +255,103 @@ export const AccountAcquisitionRevenueChart = ({ dashboardData }) => {
   )
 }
 
-// 4. Pipeline Health by Stage (Single model: Opportunity)
-export const PipelineHealthChart = ({ dashboardData }) => (
-  <div className="chart-container">
-    <h3>Sales Pipeline Health - Open opportunities by stage</h3>
-    <div className="chart-with-legend">
-      <Bar data={getPipelineHealthData(dashboardData)} options={barChartOptions} />
-    </div>
-  </div>
-)
+// 4. Pipeline Value by Stage (Bar Chart) - REPLACE EXISTING PipelineHealthChart
+export const PipelineHealthChart = ({ dashboardData }) => {
+  const pipelineBarOptions = {
+    ...barChartOptions,
+    plugins: {
+      ...barChartOptions.plugins,
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return `Pipeline Value: ${formatCurrency(context.parsed.y)}`
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: {
+          maxRotation: 45,
+          minRotation: 45,
+          font: { size: 10 }
+        }
+      },
+      y: {
+        ticks: {
+          font: { size: 10 },
+          callback: function(value) {
+            return formatCurrency(value)
+          }
+        }
+      }
+    }
+  }
 
-// 5. Deal Size Distribution (Single model: Opportunity)
+  return (
+    <div className="chart-container">
+      <h3>Pipeline Value by Stage - Dollar amount in each stage</h3>
+      <div className="chart-with-legend">
+        <Bar data={getPipelineHealthData(dashboardData)} options={pipelineBarOptions} />
+      </div>
+    </div>
+  )
+}
+
+// 5. Deal Size Distribution (Donut Chart) - REPLACE EXISTING
 export const DealSizeDistributionChart = ({ dashboardData }) => (
-  <div className="chart-container">
-    <h3>Deal Size Analysis - Won deals grouped by revenue range</h3>
-    <div className="chart-with-legend">
-      <Bar data={getDealSizeDistributionData(dashboardData)} options={barChartOptions} />
+  <div className="chart-container pie-chart-container">
+    <h3>Deal Size Distribution - Won deals grouped by revenue range</h3>
+    <div className="pie-chart-wrapper">
+      <Doughnut data={getDealSizeDistributionData(dashboardData)} options={pieChartOptions} />
     </div>
   </div>
 )
 
-// 6. Lead Source Performance (Single model: Lead)
-export const LeadSourcePerformanceChart = ({ dashboardData }) => (
-  <div className="chart-container pie-chart-container">
-    <h3>Lead Generation Sources - Where prospects come from</h3>
-    <div className="pie-chart-wrapper">
-      <Doughnut data={getLeadSourcePerformanceData(dashboardData)} options={pieChartOptions} />
+// 6. Lead Conversion Rate by Source (Bar Chart) - REPLACE EXISTING LeadSourcePerformanceChart
+export const LeadSourcePerformanceChart = ({ dashboardData }) => {
+  const conversionBarOptions = {
+    ...barChartOptions,
+    plugins: {
+      ...barChartOptions.plugins,
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return `Conversion Rate: ${context.parsed.y}%`
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: {
+          maxRotation: 45,
+          minRotation: 45,
+          font: { size: 10 }
+        }
+      },
+      y: {
+        beginAtZero: true,
+        max: 100,
+        ticks: {
+          font: { size: 10 },
+          callback: function(value) {
+            return value + '%'
+          }
+        }
+      }
+    }
+  }
+
+  return (
+    <div className="chart-container">
+      <h3>Lead Conversion by Source - Quality of leads from each source</h3>
+      <div className="chart-with-legend">
+        <Bar data={getLeadSourcePerformanceData(dashboardData)} options={conversionBarOptions} />
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 // 7. Revenue Trend (Single model: Opportunity)
 export const RevenueTrendChart = ({ dashboardData }) => {
@@ -275,15 +387,52 @@ export const AccountSegmentDistributionChart = ({ dashboardData }) => (
   </div>
 )
 
-// 9. Lead Status Funnel (Single model: Lead)
-export const LeadStatusFunnelChart = ({ dashboardData }) => (
-  <div className="chart-container">
-    <h3>Lead Conversion Funnel - Prospects at each stage</h3>
-    <div className="chart-with-legend">
-      <Bar data={getLeadStatusFunnelData(dashboardData)} options={barChartOptions} />
+// 9. Lead Status Funnel (Horizontal Bar Chart) - REPLACE EXISTING
+export const LeadStatusFunnelChart = ({ dashboardData }) => {
+  // Horizontal bar chart options for funnel
+  const horizontalFunnelOptions = {
+    indexAxis: 'y', // Makes bars horizontal
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return `Leads: ${context.parsed.x.toLocaleString()}`
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        ticks: {
+          font: { size: 10 },
+          callback: function(value) {
+            return value.toLocaleString()
+          }
+        }
+      },
+      y: {
+        ticks: {
+          font: { size: 10 }
+        }
+      }
+    }
+  }
+
+  return (
+    <div className="chart-container">
+      <h3>Lead Conversion Funnel - Prospects at each stage</h3>
+      <div className="chart-with-legend">
+        <Bar data={getLeadStatusFunnelData(dashboardData)} options={horizontalFunnelOptions} />
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 // 10. Case Priority Distribution (Single model: Case)
 export const CasePriorityChart = ({ dashboardData }) => (
@@ -294,3 +443,156 @@ export const CasePriorityChart = ({ dashboardData }) => (
     </div>
   </div>
 )
+
+// 11. Sales Rep Revenue by Stage (Multi-model: User + Opportunity)
+export const SalesRepRevenueByStageChart = ({ dashboardData }) => {
+  const getChartTitle = () => {
+    const timeframe = dashboardData?.timeframe || '24h'
+    switch(timeframe) {
+      case '24h': return 'Sales Rep Performance (Today) - Renewal revenue by rep and stage'
+      case '7d': return 'Sales Rep Performance (7 Days) - Renewal revenue by rep and stage'
+      case '1m': return 'Sales Rep Performance (This Month) - Renewal revenue by rep and stage'
+      case '6m': return 'Sales Rep Performance (6 Months) - Renewal revenue by rep and stage'
+      case '1y': return 'Sales Rep Performance (This Year) - Renewal revenue by rep and stage'
+      default: return 'Sales Rep Performance - Renewal revenue by rep and stage'
+    }
+  }
+
+  // Custom options for GROUPED bar chart with currency formatting
+  const groupedBarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          padding: 8,
+          usePointStyle: true,
+          font: { size: 10 },
+          boxWidth: 12,
+          boxHeight: 12,
+        },
+        maxHeight: 60,
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const value = context.parsed.y
+            return `${context.dataset.label}: ${formatCurrency(value)}`
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: {
+          maxRotation: 45,
+          minRotation: 45,
+          font: { size: 9 }
+        }
+      },
+      y: {
+        ticks: {
+          font: { size: 10 },
+          callback: function(value) {
+            return formatCurrency(value)
+          }
+        }
+      }
+    }
+  }
+
+  return (
+    <div className="chart-container">
+      <h3>{getChartTitle()}</h3>
+      <div className="chart-with-legend">
+        <Bar data={getSalesRepRevenueByStageData(dashboardData)} options={groupedBarOptions} />
+      </div>
+    </div>
+  )
+}
+
+// 12. Top Sales Reps by Closed Won Revenue (Horizontal Bar)
+export const TopSalesRepsClosedWonChart = ({ dashboardData }) => {
+  const getChartTitle = () => {
+    const timeframe = dashboardData?.timeframe || '24h'
+    switch(timeframe) {
+      case '24h': return 'Top Performers (Today) - Actual revenue closed by rep'
+      case '7d': return 'Top Performers (7 Days) - Actual revenue closed by rep'
+      case '1m': return 'Top Performers (This Month) - Actual revenue closed by rep'
+      case '6m': return 'Top Performers (6 Months) - Actual revenue closed by rep'
+      case '1y': return 'Top Performers (This Year) - Actual revenue closed by rep'
+      default: return 'Top Performers - Actual revenue closed by rep'
+    }
+  }
+
+  // Vertical bar chart options with blue color
+  const verticalBarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const value = context.parsed.y
+            return `Revenue: ${formatCurrency(value)}`
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: {
+          maxRotation: 45,
+          minRotation: 45,
+          font: { size: 9 }
+        }
+      },
+      y: {
+        beginAtZero: true,
+        ticks: {
+          font: { size: 10 },
+          callback: function(value) {
+            return formatCurrency(value)
+          }
+        }
+      }
+    }
+  }
+
+  return (
+    <div className="chart-container">
+      <h3>{getChartTitle()}</h3>
+      <div className="chart-with-legend">
+        <Bar data={getTopSalesRepsClosedWonData(dashboardData)} options={verticalBarOptions} />
+      </div>
+    </div>
+  )
+}
+
+// 13. Closed Won Revenue by Opportunity Type (Donut)
+export const ClosedWonByTypeChart = ({ dashboardData }) => {
+  const getChartTitle = () => {
+    const timeframe = dashboardData?.timeframe || '24h'
+    switch(timeframe) {
+      case '24h': return 'Revenue Mix (Today) - Deal types generating revenue'
+      case '7d': return 'Revenue Mix (7 Days) - Deal types generating revenue'
+      case '1m': return 'Revenue Mix (This Month) - Deal types generating revenue'
+      case '6m': return 'Revenue Mix (6 Months) - Deal types generating revenue'
+      case '1y': return 'Revenue Mix (This Year) - Deal types generating revenue'
+      default: return 'Revenue Mix - Deal types generating revenue'
+    }
+  }
+
+  return (
+    <div className="chart-container pie-chart-container">
+      <h3>{getChartTitle()}</h3>
+      <div className="pie-chart-wrapper">
+        <Doughnut data={getClosedWonByTypeData(dashboardData)} options={pieChartOptions} />
+      </div>
+    </div>
+  )
+}

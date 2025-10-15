@@ -172,6 +172,53 @@ export const getCasePriorityData = (dashboardData) => {
   return dashboardData.charts_data.case_priority_distribution
 }
 
+// 11. Sales Rep Revenue by Stage (Multi-model: User + Opportunity)
+export const getSalesRepRevenueByStageData = (dashboardData) => {
+  if (!dashboardData?.charts_data?.sales_rep_revenue_by_stage) {
+    return {
+      labels: ['Loading...'],
+      datasets: [{ 
+        label: 'Revenue ($)', 
+        data: [0], 
+        backgroundColor: 'rgba(52, 152, 219, 0.6)' 
+      }]
+    }
+  }
+  
+  return dashboardData.charts_data.sales_rep_revenue_by_stage
+}
+
+// 12. Top Sales Reps by Closed Won Revenue
+export const getTopSalesRepsClosedWonData = (dashboardData) => {
+  if (!dashboardData?.charts_data?.top_sales_reps_closed_won) {
+    return {
+      labels: ['Loading...'],
+      datasets: [{ 
+        label: 'Revenue ($)', 
+        data: [0], 
+        backgroundColor: 'rgba(46, 204, 113, 0.6)' 
+      }]
+    }
+  }
+  
+  return dashboardData.charts_data.top_sales_reps_closed_won
+}
+
+// 13. Closed Won Revenue by Opportunity Type
+export const getClosedWonByTypeData = (dashboardData) => {
+  if (!dashboardData?.charts_data?.closed_won_by_type) {
+    return {
+      labels: ['Loading...'],
+      datasets: [{ 
+        data: [1], 
+        backgroundColor: ['rgba(52, 152, 219, 0.6)'] 
+      }]
+    }
+  }
+  
+  return dashboardData.charts_data.closed_won_by_type
+}
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================

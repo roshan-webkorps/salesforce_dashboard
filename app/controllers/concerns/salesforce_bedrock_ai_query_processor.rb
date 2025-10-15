@@ -166,6 +166,8 @@ module SalesforceBedrockAiQueryProcessor
 
       CRITICAL FILTERING RULE:
       - ALWAYS add "app_type = '#{app_type}'" to ALL table queries
+      - ALWAYS exclude test data with "is_test_opportunity = false" when querying opportunities
+      - For queries about actual revenue/performance, use "is_closed = true AND is_won = true"
 
       COMPARISON QUERY RULES:
       - For time comparisons like "January vs March" or "Q1 vs Q2", create AGGREGATE totals, not per-rep breakdowns
@@ -178,7 +180,7 @@ module SalesforceBedrockAiQueryProcessor
 
       NATURAL LANGUAGE TERMINOLOGY MAPPING:
       Map common business terms to database fields:
-      - "revenue" = opportunities.amount (for closed won deals) OR accounts.annual_revenue#{' '}
+      - "revenue" = opportunities.amount (for closed won deals) OR accounts.annual_revenue
       - "deals" = opportunities
       - "reps" or "salespeople" = users (sales representatives)
       - "clients" or "customers" = accounts
@@ -190,6 +192,12 @@ module SalesforceBedrockAiQueryProcessor
       - "conversion" = leads where is_converted = true
       - "performance" = revenue, win rates, activity metrics
       - "activity" = count of opportunities, leads, etc.
+      - "renewals" = opportunities where record_type_name = 'Renewal'
+      - "new business" = opportunities where record_type_name = 'New Business'
+      - "upgrades" = opportunities where record_type_name = 'Upgrade'
+      - "renewal date" = renewal_date field (when renewal is due)
+      - "close date" = close_date field (when deal closed)
+      - "exclude test" or "real data" = is_test_opportunity = false
 
       DEFAULT TIME FRAME RULE - BE VERY SPECIFIC:
 
@@ -247,6 +255,15 @@ module SalesforceBedrockAiQueryProcessor
 
       Query with date formatting for trends:
       {"sql": "SELECT TO_CHAR(o.close_date, 'Mon YYYY') as month, SUM(o.amount) as revenue FROM opportunities o WHERE o.app_type = '#{app_type}' AND o.is_closed = true AND o.is_won = true AND o.close_date >= NOW() - INTERVAL '6 months' GROUP BY TO_CHAR(o.close_date, 'Mon YYYY') ORDER BY MIN(o.close_date)", "description": "Monthly revenue trend", "chart_type": "line"}
+
+      Query about renewals:
+      {"sql": "SELECT u.name, SUM(o.amount) as renewal_revenue FROM opportunities o JOIN users u ON o.owner_salesforce_id = u.salesforce_id WHERE o.app_type = '#{app_type}' AND u.app_type = '#{app_type}' AND o.record_type_name = 'Renewal' AND o.is_test_opportunity = false AND o.renewal_date >= NOW() - INTERVAL '1 month' GROUP BY u.name ORDER BY 2 DESC LIMIT 10", "description": "Top reps by renewal revenue this month", "chart_type": "bar"}
+
+      Query filtering by opportunity type:
+      {"sql": "SELECT o.record_type_name, COUNT(*) as deal_count, SUM(o.amount) as total_revenue FROM opportunities o WHERE o.app_type = '#{app_type}' AND o.is_closed = true AND o.is_won = true AND o.is_test_opportunity = false GROUP BY o.record_type_name ORDER BY 3 DESC", "description": "Revenue by opportunity type", "chart_type": "bar"}
+
+      Query using renewal_date:
+      {"sql": "SELECT u.name, COUNT(*) as renewals_due FROM opportunities o JOIN users u ON o.owner_salesforce_id = u.salesforce_id WHERE o.app_type = '#{app_type}' AND u.app_type = '#{app_type}' AND o.record_type_name = 'Renewal' AND o.is_test_opportunity = false AND o.renewal_date BETWEEN NOW() AND NOW() + INTERVAL '30 days' GROUP BY u.name ORDER BY 2 DESC", "description": "Renewals due in next 30 days by rep", "chart_type": "bar"}
 
       Simple lead conversion (using is_converted field):
       {"sql": "SELECT u.name, ROUND(COUNT(CASE WHEN l.is_converted = true THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as conversion_rate, COUNT(*) as total_leads FROM users u JOIN leads l ON u.salesforce_id = l.owner_salesforce_id WHERE u.app_type = '#{app_type}' AND l.app_type = '#{app_type}' GROUP BY u.name HAVING COUNT(*) >= 10 ORDER BY 2 DESC LIMIT 10", "description": "Lead conversion rates by sales rep", "chart_type": "bar"}
@@ -336,7 +353,10 @@ module SalesforceBedrockAiQueryProcessor
         - owner_salesforce_id (foreign key to users.salesforce_id)
         - amount, close_date, salesforce_created_date
         - is_closed, is_won (boolean flags)
-        - opportunity_type, lead_source, probability, expected_revenue
+        - opportunity_type, lead_source, probability, expected_revenue, forecast_category
+        - renewal_date (date when renewal is due)
+        - is_test_opportunity (boolean - exclude test data)
+        - record_type_name (type: New Business, Renewal, Upgrade, etc.)
         - app_type
 
       leads:

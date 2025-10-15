@@ -29,7 +29,10 @@ class SalesforceDashboardController < ApplicationController
       revenue_trend: get_revenue_trend_data(timeframe_start, timeframe),
       account_segment_distribution: get_account_segment_distribution_data(timeframe_start),
       lead_status_funnel: get_lead_status_funnel_data(timeframe_start),
-      case_priority_distribution: get_case_priority_distribution_data(timeframe_start)
+      case_priority_distribution: get_case_priority_distribution_data(timeframe_start),
+      sales_rep_revenue_by_stage: get_sales_rep_revenue_by_stage_data(timeframe_start, timeframe),
+      top_sales_reps_closed_won: get_top_sales_reps_closed_won_data(timeframe_start, timeframe),
+      closed_won_by_type: get_closed_won_by_type_data(timeframe_start, timeframe)
     }
 
     render json: {
