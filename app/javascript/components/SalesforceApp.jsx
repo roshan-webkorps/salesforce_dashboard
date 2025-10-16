@@ -49,7 +49,7 @@ const SalesforceApp = () => {
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [timeframe, setTimeframe] = useState('24h')
+  const [timeframe, setTimeframe] = useState('1m')
   const [appType, setAppType] = useState('legacy')
   
   const [isChatModalOpen, setIsChatModalOpen] = useState(false)

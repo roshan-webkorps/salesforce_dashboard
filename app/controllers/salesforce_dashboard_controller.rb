@@ -13,7 +13,7 @@ class SalesforceDashboardController < ApplicationController
   def api_data
     session.delete(:chat_service) if request.get? && request.path == "/api/salesforce"
 
-    timeframe = params[:timeframe] || "24h"  # Default to 24h
+    timeframe = params[:timeframe] || "1m"  # Default to 1 month
     app_type = params[:app_type] || "legacy"  # Default to legacy
     timeframe_start = calculate_timeframe_start(timeframe)
 
@@ -108,6 +108,7 @@ class SalesforceDashboardController < ApplicationController
       total_sales_reps: User.where(app_type: app_type, is_active: true).count,
       total_open_opportunities: Opportunity.where(app_type: app_type, is_closed: false).count,
       total_revenue: Opportunity.where(app_type: app_type, is_closed: true, is_won: true)
+                                .where(is_test_opportunity: false)
                                 .where("close_date >= ?", timeframe_start)
                                 .sum(:amount) || 0,
       total_cases: Case.where(app_type: app_type)
