@@ -137,7 +137,9 @@ class SalesforceDashboardController < ApplicationController
   end
 
   def log_chat_prompt_history(ip_address, app_type, prompt)
-    ChatPromptHistory.create(ip_address:, app_type:, prompt:)
+    ChatPromptHistory.find_or_create_by(ip_address: ip_address, prompt: prompt) do |record|
+      record.app_type = app_type
+    end
   end
 
   def database_status
