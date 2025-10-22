@@ -56,8 +56,11 @@ class SalesforceDashboardController < ApplicationController
   end
 
   def ai_query
+    ip_address = request.remote_ip
     user_query = params[:query]
     app_type = params[:app_type] || "legacy"
+
+    log_chat_prompt_history(ip_address, app_type, user_query)
 
     if user_query.blank?
       render json: { error: "Query cannot be empty" }, status: 400
@@ -131,6 +134,10 @@ class SalesforceDashboardController < ApplicationController
     else
       24.hours.ago
     end
+  end
+
+  def log_chat_prompt_history(ip_address, app_type, prompt)
+    ChatPromptHistory.create(ip_address:, app_type:, prompt:)
   end
 
   def database_status

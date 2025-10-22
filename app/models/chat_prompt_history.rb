@@ -1,0 +1,2 @@
+class ChatPromptHistory < ApplicationRecord
+end

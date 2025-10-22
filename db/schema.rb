@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_10_15_185725) do
+ActiveRecord::Schema[8.0].define(version: 2025_10_22_144339) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -55,6 +55,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_10_15_185725) do
     t.index ["salesforce_created_date"], name: "index_cases_on_salesforce_created_date"
     t.index ["salesforce_id"], name: "index_cases_on_salesforce_id", unique: true
     t.index ["status"], name: "index_cases_on_status"
+  end
+
+  create_table "chat_prompt_histories", force: :cascade do |t|
+    t.string "ip_address", null: false
+    t.string "app_type", default: "legacy", null: false
+    t.text "prompt", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ip_address", "prompt"], name: "index_chat_prompt_histories_on_ip_address_and_prompt", unique: true
   end
 
   create_table "leads", force: :cascade do |t|
