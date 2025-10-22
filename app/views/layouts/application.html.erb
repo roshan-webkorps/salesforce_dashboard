@@ -7,6 +7,9 @@
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
     
+    <meta name="github-app-url" content="<%= ENV.fetch('GITHUB_APP_URL', 'http://localhost:3000') %>" />
+    <meta name="salesforce-app-url" content="<%= ENV.fetch('SALESFORCE_APP_URL', 'http://localhost:3002') %>" />
+    
     <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
     <%= javascript_include_tag "application", "data-turbo-track": "reload", type: "module" %>
   </head>

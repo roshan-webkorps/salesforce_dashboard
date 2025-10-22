@@ -1,4 +1,3 @@
-// app/javascript/components/SalesforceApp.jsx - Updated with AI Chat
 import React, { useState, useEffect } from 'react'
 import {
   Chart as ChartJS,
@@ -44,6 +43,11 @@ ChartJS.register(
   Legend,
   Filler
 )
+
+const getAppUrl = (metaName, defaultUrl) => {
+  const meta = document.querySelector(`meta[name="${metaName}"]`)
+  return meta?.getAttribute('content') || defaultUrl
+}
 
 const SalesforceApp = () => {
   const [dashboardData, setDashboardData] = useState(null)
@@ -133,6 +137,9 @@ const SalesforceApp = () => {
     }
   }
 
+  const githubUrl = getAppUrl('github-app-url', 'http://localhost:3000')
+  const salesforceUrl = getAppUrl('salesforce-app-url', 'http://localhost:3002')
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -156,6 +163,17 @@ const SalesforceApp = () => {
 
   return (
     <div className="app">
+      <nav className="app-navigation">
+        <div className="nav-links">
+          <a href={githubUrl} className="nav-link">
+            GitHub & Jira Analytics
+          </a>
+          <a href={salesforceUrl} className="nav-link active">
+            Salesforce Analytics
+          </a>
+        </div>
+      </nav>
+
       <header className="app-header">
         <div className="header-content">
           <div className="header-left">
@@ -170,24 +188,6 @@ const SalesforceApp = () => {
           </div>
           
           <div className="header-right">
-            {/* Uncomment if you want app type selector
-            <div className="app-type-selector">
-              <label htmlFor="appType">App Type:</label>
-              <select 
-                id="appType"
-                value={appType} 
-                onChange={(e) => handleAppTypeChange(e.target.value)}
-                className="app-type-select"
-              >
-                {appTypeOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            */}
-            
             <div className="timeframe-selector">
               <label htmlFor="timeframe">Timeframe:</label>
               <select 
@@ -245,36 +245,30 @@ const SalesforceApp = () => {
         <div className="charts-section">
           <h2 className="charts-title">Sales Growth Analytics</h2>
 
-          {/* Row 6: Sales Rep Performance */}
           <div className="charts-grid-full">
             <SalesRepRevenueByStageChart dashboardData={dashboardData} />
           </div>
 
-          {/* Row 2: Closed-Won Performance */}
           <div className="charts-grid-two">
             <TopSalesRepsClosedWonChart dashboardData={dashboardData} />
             <ClosedWonByTypeChart dashboardData={dashboardData} />
           </div>
 
-          {/* Row 3: Opportunity Trends & Performance Analysis */}
           <div className="charts-grid-two">
             <OpportunityCreationTrendChart dashboardData={dashboardData} />
             <WinRateAnalysisChart dashboardData={dashboardData} />
           </div>
 
-          {/* Row 2: Growth Trends (Account + Opportunity, Revenue) */}
           <div className="charts-grid-two">
             <AccountAcquisitionRevenueChart dashboardData={dashboardData} />
             <RevenueTrendChart dashboardData={dashboardData} />
           </div>
 
-          {/* Row 3: Pipeline & Lead Analysis */}
           <div className="charts-grid-two">
             <PipelineHealthChart dashboardData={dashboardData} />
             <LeadSourcePerformanceChart dashboardData={dashboardData} />
           </div>
 
-          {/* Row 4: Deal & Funnel Analysis */}
           <div className="charts-grid-two">
             <DealSizeDistributionChart dashboardData={dashboardData} />
             <LeadStatusFunnelChart dashboardData={dashboardData} />
