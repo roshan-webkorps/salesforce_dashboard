@@ -230,73 +230,65 @@ class SalesforceAiQueryProcessorWithTranscripts
       CRITICAL RULES:
       1. Response MUST be valid JSON: {"sql":"SELECT...","description":"Brief description","transcript_query":"search terms for meeting transcripts"}
       2. FORBIDDEN: WITH clauses, CTEs, CASE WHEN, ROUND, LEAST, GREATEST, nested subqueries
-      3. ONLY use: SELECT, FROM, LEFT JOIN, WHERE, GROUP BY, ORDER BY, LIMIT
+      3. ONLY use: SELECT, FROM, LEFT JOIN, WHERE, GROUP BY, ORDER BY, LIMIT, HAVING
       4. ALWAYS filter: app_type = '#{app_type}' on ALL tables
       5. ALWAYS exclude test data: is_test_opportunity = false when querying opportunities table
-      6. **CRITICAL TIME FILTER RULE**:#{' '}
-        - If query says "top", "best", "most", "highest", "lowest" WITHOUT a time word = NO DATE FILTER (all-time)
-        - ONLY add date filter if query explicitly mentions: "this month", "last month", "recent", "this year", "today"
-        - Examples: "top 5 reps" = NO filter | "top 5 reps this month" = YES filter
+      6. For won/closed revenue: ALWAYS use "o.is_closed = true AND o.is_won = true"
       7. Use COALESCE for nullable aggregations
       8. Use ILIKE for case-insensitive name matching
       9. For money calculations, cast to avoid scientific notation: SUM(o.amount)::numeric
-      10. For won/closed revenue: ALWAYS use "o.is_closed = true AND o.is_won = true"
-      11. An opportunity cannot be won unless it's also closed
+      10. For ranking queries, use HAVING to filter out zero/null values and ORDER BY with NULLS LAST
+
+      CRITICAL DATE FIELD RULES:
+      - For "performance", "revenue", "closed deals", "won deals" queries: use close_date field
+      - For "created", "new", "generated opportunities" queries: use salesforce_created_date field
+      - For "pipeline", "open opportunities": no date filter needed (use is_closed = false)
+      - NEVER filter won deals by salesforce_created_date - always use close_date
+
+      TIME FILTER RULES:
+      - NO TIME FILTER if query says: "top", "best", "most", "highest", "lowest" WITHOUT time words
+      - ADD TIME FILTER (1 month default) if query mentions: "this month", "last month", "recent", "in last X", "this year"
+      - Exception: Performance queries with explicit time mention should filter by close_date
+
+      Examples:
+      - "top 5 reps by revenue" = NO time filter (all-time)
+      - "top 5 reps this month" = close_date >= NOW() - INTERVAL '1 month'
+      - "Brent's performance last month" = close_date >= NOW() - INTERVAL '1 month'
+      - "new opportunities this month" = salesforce_created_date >= NOW() - INTERVAL '1 month'
 
       TRANSCRIPT SEARCH:
       - Include a "transcript_query" field with ONLY the person's first name for person-specific queries
-      - For sales rep queries: use ONLY their first name (e.g., "sarah" not "sarah performance deals")
-      - For general queries without a person: use 1-2 topic keywords (e.g., "pipeline review", "quarterly deals")
-      - Example: For "How was Sarah's performance?" → "transcript_query": "sarah"
-      - Example: For "What deals closed this month?" → "transcript_query": "deals closed"
-
-      DEFAULT TIME FRAME RULE - CRITICAL:
-
-      DO NOT APPLY TIME FILTER for these query types:
-      - "top sales reps", "best performers", "highest revenue" (looking for all-time rankings)
-      - "by industry", "by segment", "distribution" (analyzing all existing data)
-      - "all accounts", "total revenue" (historical analysis)
-      - Any query about RANKINGS or TOP/BEST without time reference
-
-      APPLY TIME FILTER (default 1 month) for these query types:
-      - "this month", "last month", "recent", "lately" (explicit time reference)
-      - "created this month", "new", "recent activity" (creation-based)
-      - Any query with explicit time period mentioned
-
-      Examples:
-      - "top 5 sales reps by revenue" = NO time filter (all-time ranking)
-      - "top 5 sales reps this month" = YES time filter (1 month)
-      - "recent opportunities" = YES time filter
-      - "best performing accounts" = NO time filter (all-time)
+      - For sales rep queries: use ONLY their first name (e.g., "sarah" not "sarah performance")
+      - For general queries: use 1-2 topic keywords (e.g., "pipeline", "deals")
 
       EXAMPLE QUERIES:
 
-      For individual sales rep metrics (aggregate all their activity):
+      1. Sales rep performance with time filter (last month - use close_date):
       {
-        "sql": "SELECT u.name as sales_rep, COUNT(DISTINCT o.id) as total_opportunities, SUM(CASE WHEN o.is_closed = true AND o.is_won = true THEN o.amount ELSE 0 END)::numeric as won_revenue, SUM(CASE WHEN o.is_closed = false THEN o.amount ELSE 0 END)::numeric as open_pipeline, COUNT(DISTINCT CASE WHEN o.is_closed = true AND o.is_won = true THEN o.id END) as won_deals FROM users u LEFT JOIN opportunities o ON u.salesforce_id = o.owner_salesforce_id AND o.app_type='#{app_type}' AND o.is_test_opportunity = false AND o.close_date >= NOW() - INTERVAL '1 month' WHERE u.app_type = '#{app_type}' AND u.name ILIKE '%PartialName%' GROUP BY u.name",
-        "description": "Sales rep performance metrics",
-        "transcript_query": "firstname"
+        "sql": "SELECT u.name as sales_rep, COUNT(DISTINCT o.id) as total_opportunities, COUNT(DISTINCT CASE WHEN o.is_closed = true AND o.is_won = true THEN o.id END) as won_deals, SUM(CASE WHEN o.is_closed = true AND o.is_won = true THEN o.amount ELSE 0 END)::numeric as won_revenue, SUM(CASE WHEN o.is_closed = false THEN o.amount ELSE 0 END)::numeric as open_pipeline FROM users u LEFT JOIN opportunities o ON u.salesforce_id = o.owner_salesforce_id AND o.app_type='#{app_type}' AND o.is_test_opportunity = false AND o.close_date >= NOW() - INTERVAL '1 month' WHERE u.app_type = '#{app_type}' AND u.name ILIKE '%Brent%' GROUP BY u.name",
+        "description": "Brent's performance metrics for last month",
+        "transcript_query": "brent"
       }
 
-      For top sales reps by revenue (closed-won deals only):
-      {
-        "sql": "SELECT u.name as sales_rep, COUNT(o.id) as won_deals, SUM(o.amount)::numeric as total_revenue FROM users u LEFT JOIN opportunities o ON u.salesforce_id = o.owner_salesforce_id AND o.app_type = '#{app_type}' AND o.is_closed = true AND o.is_won = true AND o.is_test_opportunity = false WHERE u.app_type = '#{app_type}' AND o.close_date >= NOW() - INTERVAL '1 month' GROUP BY u.name ORDER BY total_revenue DESC LIMIT 5",
-        "description": "Top 5 sales reps by closed revenue",
-        "transcript_query": "sales revenue"
-      }
-
-      For top sales reps by revenue (ALL-TIME - notice NO date filter):
+      2. Top sales reps by revenue (ALL-TIME - no date filter):
       {
         "sql": "SELECT u.name as sales_rep, COUNT(o.id) as won_deals, SUM(o.amount)::numeric as total_revenue FROM users u LEFT JOIN opportunities o ON u.salesforce_id = o.owner_salesforce_id AND o.app_type = '#{app_type}' AND o.is_closed = true AND o.is_won = true AND o.is_test_opportunity = false WHERE u.app_type = '#{app_type}' GROUP BY u.name HAVING SUM(o.amount) > 0 ORDER BY total_revenue DESC NULLS LAST LIMIT 5",
         "description": "Top 5 sales reps by total revenue (all-time)",
         "transcript_query": "sales revenue"
       }
 
-      For pipeline value (open opportunities):
+      3. Pipeline value (open opportunities - no date filter needed):
       {
         "sql": "SELECT u.name as sales_rep, COUNT(o.id) as open_opportunities, SUM(o.amount)::numeric as pipeline_value FROM users u LEFT JOIN opportunities o ON u.salesforce_id = o.owner_salesforce_id AND o.app_type='#{app_type}' AND o.is_closed = false AND o.is_test_opportunity = false WHERE u.app_type = '#{app_type}' AND u.name ILIKE '%Brent%' GROUP BY u.name",
-        "description": "Brent's pipeline value",
+        "description": "Brent's current pipeline value",
         "transcript_query": "brent"
+      }
+
+      4. New opportunities created this month (use salesforce_created_date):
+      {
+        "sql": "SELECT u.name as sales_rep, COUNT(o.id) as new_opportunities FROM users u LEFT JOIN opportunities o ON u.salesforce_id = o.owner_salesforce_id AND o.app_type='#{app_type}' AND o.is_test_opportunity = false AND o.salesforce_created_date >= NOW() - INTERVAL '1 month' WHERE u.app_type = '#{app_type}' GROUP BY u.name ORDER BY new_opportunities DESC LIMIT 10",
+        "description": "Top 10 reps by new opportunities created this month",
+        "transcript_query": "new opportunities"
       }
 
       Respond with ONLY the JSON object. Nothing before {, nothing after }.
