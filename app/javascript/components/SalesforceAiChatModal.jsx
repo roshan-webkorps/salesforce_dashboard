@@ -219,18 +219,29 @@ const SalesforceAiChatModal = ({ isOpen, onClose, onQuery, onNewTopic }) => {
           <ol key={pIndex} style={{ marginBottom: '1rem', paddingLeft: '1.5rem' }}>
             {listItems.map((item, index) => (
               <li key={index} style={{ marginBottom: '0.5rem', lineHeight: '1.5' }}>
-                {item}
+                {renderBoldText(item)}
               </li>
             ))}
           </ol>
         );
       } else {
         return (
-          <p key={pIndex} style={{ marginBottom: '1rem', lineHeight: '1.5' }}>
-            {paragraph.trim()}
+          <p key={pIndex} style={{ marginBottom: '1rem', lineHeight: '1.6' }}>
+            {renderBoldText(paragraph.trim())}
           </p>
         );
       }
+    });
+  };
+
+  const renderBoldText = (text) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
     });
   };
 
@@ -291,12 +302,6 @@ const SalesforceAiChatModal = ({ isOpen, onClose, onQuery, onNewTopic }) => {
     return (
       <div key={message.id} className="message ai-message">
         <div className="message-content">
-          {content.description && (
-            <div className="result-description">
-              <h4>{content.description}</h4>
-            </div>
-          )}
-          
           {content.chart_type === 'table' ? 
             renderTable(content.data) : 
             renderChart(content.data, content.chart_type)
@@ -305,16 +310,8 @@ const SalesforceAiChatModal = ({ isOpen, onClose, onQuery, onNewTopic }) => {
           {content.summary && (
             <div className="ai-summary">
               <div className="summary-content">
-                <p>{content.summary}</p>
+                {formatTextResponse(content.summary)}
               </div>
-            </div>
-          )}
-
-          {content.raw_results && (
-            <div className="result-count">
-              <small>
-                Found {content.raw_results.length} result{content.raw_results.length !== 1 ? 's' : ''}
-              </small>
             </div>
           )}
         </div>

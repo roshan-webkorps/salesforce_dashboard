@@ -68,7 +68,8 @@ class SalesforceDashboardController < ApplicationController
     end
 
     begin
-      result = process_salesforce_bedrock_ai_query(user_query, app_type, @chat_service)
+      processor = SalesforceAiQueryProcessorWithTranscripts.new
+      result = processor.process_query_with_transcripts(user_query, app_type, @chat_service)
 
       render json: result
     rescue => e

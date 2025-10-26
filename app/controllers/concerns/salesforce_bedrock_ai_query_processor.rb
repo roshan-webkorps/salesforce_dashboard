@@ -4,7 +4,7 @@ module SalesforceBedrockAiQueryProcessor
 
   MODEL_CONFIG = {
     model_id: "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-    max_tokens: 500,
+    max_tokens: 2000,
     temperature: 0.1
   }.freeze
 
