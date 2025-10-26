@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_10_22_144339) do
+ActiveRecord::Schema[8.0].define(version: 2025_10_26_202229) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -30,7 +30,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_10_22_144339) do
     t.decimal "annual_revenue", precision: 12, scale: 2
     t.decimal "mrr", precision: 12, scale: 2
     t.decimal "amount_paid", precision: 12, scale: 2
+    t.index ["app_type", "segment", "industry"], name: "idx_accounts_segment_queries"
     t.index ["app_type"], name: "index_accounts_on_app_type"
+    t.index ["owner_salesforce_id", "app_type"], name: "idx_accounts_owner_queries"
     t.index ["owner_salesforce_id"], name: "index_accounts_on_owner_salesforce_id"
     t.index ["salesforce_created_date"], name: "index_accounts_on_salesforce_created_date"
     t.index ["salesforce_id"], name: "index_accounts_on_salesforce_id", unique: true
@@ -50,7 +52,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_10_22_144339) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["account_salesforce_id"], name: "index_cases_on_account_salesforce_id"
+    t.index ["app_type", "priority", "status"], name: "idx_cases_priority_queries"
     t.index ["app_type"], name: "index_cases_on_app_type"
+    t.index ["owner_salesforce_id", "app_type", "status"], name: "idx_cases_owner_queries"
     t.index ["owner_salesforce_id"], name: "index_cases_on_owner_salesforce_id"
     t.index ["salesforce_created_date"], name: "index_cases_on_salesforce_created_date"
     t.index ["salesforce_id"], name: "index_cases_on_salesforce_id", unique: true
@@ -81,8 +85,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_10_22_144339) do
     t.string "app_type", default: "legacy", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["app_type", "status", "is_converted"], name: "idx_leads_conversion_queries"
     t.index ["app_type"], name: "index_leads_on_app_type"
     t.index ["is_converted"], name: "index_leads_on_is_converted"
+    t.index ["owner_salesforce_id", "app_type", "salesforce_created_date"], name: "idx_leads_owner_queries"
     t.index ["owner_salesforce_id"], name: "index_leads_on_owner_salesforce_id"
     t.index ["salesforce_created_date"], name: "index_leads_on_salesforce_created_date"
     t.index ["salesforce_id"], name: "index_leads_on_salesforce_id", unique: true
@@ -112,10 +118,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_10_22_144339) do
     t.boolean "is_test_opportunity", default: false
     t.string "record_type_name"
     t.index ["account_salesforce_id"], name: "index_opportunities_on_account_salesforce_id"
+    t.index ["app_type", "is_closed", "stage_name"], name: "idx_opps_pipeline_queries", where: "((is_closed = false) AND (is_test_opportunity = false))"
+    t.index ["app_type", "is_test_opportunity", "is_closed", "is_won", "close_date"], name: "idx_opps_ai_query_pattern", where: "(is_test_opportunity = false)"
     t.index ["app_type"], name: "index_opportunities_on_app_type"
     t.index ["expected_revenue"], name: "index_opportunities_on_expected_revenue"
     t.index ["is_closed", "is_won"], name: "index_opportunities_on_is_closed_and_is_won"
     t.index ["is_test_opportunity"], name: "index_opportunities_on_is_test_opportunity"
+    t.index ["owner_salesforce_id", "app_type", "is_test_opportunity", "close_date"], name: "idx_opps_owner_performance", where: "(is_test_opportunity = false)"
     t.index ["owner_salesforce_id"], name: "index_opportunities_on_owner_salesforce_id"
     t.index ["probability"], name: "index_opportunities_on_probability"
     t.index ["record_type_name"], name: "index_opportunities_on_record_type_name"
