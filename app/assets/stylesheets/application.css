@@ -1161,16 +1161,23 @@ body {
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 2rem;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 200px 1fr 200px; /* Fixed width columns on sides, flexible center */
   align-items: center;
   height: 64px;
+  gap: 2rem;
 }
 
 .nav-left {
   display: flex;
   align-items: center;
-  gap: 2rem;
+  justify-content: flex-start;
+}
+
+.nav-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .nav-logo {
@@ -1178,6 +1185,7 @@ body {
   font-weight: 700;
   color: #1e293b;
   margin: 0;
+  white-space: nowrap;
 }
 
 .nav-tabs {
@@ -1217,6 +1225,7 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
+  justify-content: flex-end;
 }
 
 .app-type-dropdown {
