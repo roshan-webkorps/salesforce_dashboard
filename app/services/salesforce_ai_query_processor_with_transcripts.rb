@@ -151,7 +151,7 @@ class SalesforceAiQueryProcessorWithTranscripts
       max_tokens: 500,
       temperature: 0.0,
       system: system_prompt,
-      messages: [ { role: "user", content: user_query } ]
+      messages: [ { role: "user", content: "#{user_query}\n\n[Request-#{Time.now.to_f}]" } ]
     }
 
     response = client.invoke_model({
@@ -191,7 +191,7 @@ class SalesforceAiQueryProcessorWithTranscripts
       max_tokens: 2000,
       temperature: 0.3,
       system: system_prompt,
-      messages: [ { role: "user", content: user_prompt } ]
+      messages: [ { role: "user", content: "#{user_prompt}\n\n[Request-#{Time.now.to_f}]" } ]
     }
 
     response = client.invoke_model({
@@ -441,7 +441,7 @@ class SalesforceAiQueryProcessorWithTranscripts
       max_tokens: 1000,
       temperature: 0.3,
       system: system_prompt,
-      messages: [ { role: "user", content: prompt_parts.join("\n") } ]
+      messages: [ { role: "user", content: "#{prompt_parts.join("\n")}\n\n[Request-#{Time.now.to_f}]" } ]
     }
 
     response = client.invoke_model({

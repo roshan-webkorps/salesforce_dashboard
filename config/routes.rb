@@ -1,6 +1,7 @@
 # config/routes.rb
 Rails.application.routes.draw do
-  root "salesforce_dashboard#index"
+  # root "salesforce_dashboard#index"
+  root "salesforce_dashboard#chat_home"
 
   get "api/salesforce", to: "salesforce_dashboard#api_data"
   post "api/salesforce-ai-query", to: "salesforce_dashboard#ai_query"
