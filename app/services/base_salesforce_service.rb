@@ -101,7 +101,6 @@ class BaseSalesforceService
 
     if object_type == "User"
       where_clauses << "IsActive = true"
-      where_clauses << "UserType = 'Standard'"  # Only internal users
     end
 
     where_clause = where_clauses.any? ? "WHERE #{where_clauses.join(' AND ')}" : ""

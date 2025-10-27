@@ -21,7 +21,7 @@ class BaseSalesforceSyncService
 
   def sync_users(since = 1.year.ago)
     Rails.logger.info "Syncing users..."
-    sync_entity("user", @salesforce.fetch_users(5.years.ago))
+    sync_entity("user", @salesforce.fetch_users(50.years.ago))
   end
 
   def sync_accounts(since = 1.year.ago)
@@ -105,8 +105,8 @@ class BaseSalesforceSyncService
     return false if email&.include?("noreply") || email&.include?("system")
 
     # Only sync Standard users (internal employees)
-    user_type = user_data["UserType"]
-    return false unless user_type == "Standard"
+    user_type = user_data.dig("Profile", "Name")
+    return false unless [ "Sales User", "CS Admin", "Back Office Team" ].include? user_type
 
     # Additional safety check: exclude customer/partner profiles
     profile_name = user_data.dig("Profile", "Name") || ""
