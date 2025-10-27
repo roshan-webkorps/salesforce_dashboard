@@ -66,12 +66,14 @@ class SalesforceAiQueryProcessorWithTranscripts
 
       # CALL 2: Generate final response with actual data
       # Pass the original rep name for transcript filtering
+      list_format = user_wants_list_format?(user_query)
       final_response = generate_final_response_with_data(
         user_query,
         sql_results,
         transcript_chunks,
         app_type,
-        rep_name_from_query  # NEW: Pass original name
+        rep_name_from_query,  # Pass original name
+        list_format  # NEW: Pass format preference
       )
 
       # Store the exchange
@@ -109,6 +111,11 @@ class SalesforceAiQueryProcessorWithTranscripts
   end
 
   private
+
+  def user_wants_list_format?(query)
+    list_keywords = /\b(list|top|rank|who are|show me|give me)\s+(the\s+)?\d+|top\s+\d+|best\s+\d+|most\s+\w+\s+reps?/i
+    query.match?(list_keywords)
+  end
 
   # Extract sales rep name from the original query
   def extract_rep_name_from_query(query)
@@ -169,7 +176,7 @@ class SalesforceAiQueryProcessorWithTranscripts
   end
 
   # CALL 2: Generate final natural language response with data
-  def generate_final_response_with_data(user_query, sql_results, transcript_chunks, app_type, rep_name_from_query = nil)
+  def generate_final_response_with_data(user_query, sql_results, transcript_chunks, app_type, rep_name_from_query = nil, list_format = false)
     client = initialize_bedrock_client
 
     # Filter transcripts using the ORIGINAL rep name from query
@@ -178,7 +185,7 @@ class SalesforceAiQueryProcessorWithTranscripts
       rep_name_from_query || extract_rep_name_from_results(sql_results)
     )
 
-    system_prompt = build_response_generation_prompt(app_type, sql_results)
+    system_prompt = build_response_generation_prompt(app_type, sql_results, list_format)
 
     user_prompt = build_response_user_prompt(
       user_query,
@@ -298,50 +305,84 @@ class SalesforceAiQueryProcessorWithTranscripts
   end
 
   # Build system prompt for response generation (CALL 2)
-  def build_response_generation_prompt(app_type, sql_results)
+  def build_response_generation_prompt(app_type, sql_results, list_format = false)
     app_display_name = app_type == "legacy" ? "Legacy" : "Pioneer"
 
-    <<~RESPONSE_PROMPT
-      You are a performance analyst for the #{app_display_name} Salesforce sales team.
+    if list_format
+      <<~RESPONSE_PROMPT
+        You are a performance analyst for the #{app_display_name} Salesforce sales team.
 
-      Your job is to analyze data and provide clear, actionable insights.
+        Your job is to analyze data and provide clear, actionable insights.
 
-      WRITING STYLE:
-      - Write in short, focused paragraphs (2-4 sentences each)
-      - Separate different topics with a blank line between paragraphs
-      - Maximum 3 paragraphs total
-      - Use bold markdown **like this** to highlight key metrics and achievements
-      - Be concise and scannable - prioritize clarity over comprehensiveness
-      - Focus on the most important insights only
+        WRITING STYLE FOR LISTS:
+        - Use numbered list format (1. 2. 3. etc.)
+        - Each list item should be concise (1-2 sentences)
+        - Include key metrics in bold **like this**
+        - After the list, optionally add ONE short paragraph (2-3 sentences) with additional context from meetings if relevant
+        - DO NOT add metrics if the value is 0
 
-      ANALYSIS GUIDELINES:
-      - Combine quantitative metrics with qualitative context from meetings
-      - DO NOT add the metric in response if the value is 0 (e.g., $0 revenue, 0 opportunities closed etc)
-      - Focus on strengths, achievements, and positive contributions
-      - Frame any areas for improvement constructively and supportively
-      - Lead with accomplishments before mentioning growth areas
-      - Use appreciative language and highlight specific positive evidence
-      - Keep tone warm, encouraging, and professional
-      - Default to optimistic interpretation when data is ambiguous
+        ANALYSIS GUIDELINES:
+        - Combine quantitative metrics with qualitative context from meetings
+        - Focus on strengths, achievements, and positive contributions
+        - Use appreciative language and highlight specific positive evidence
 
-      TONE REQUIREMENTS:
-      - Maintain a predominantly positive tone (100% positive, 0% constructive/negative)
-      - Start with accomplishments and strong points
-      - End on an uplifting or forward-looking note
-      - Keep it brief - if you can't fit it in 3 short paragraphs, it's not essential
-      - Use phrases like "demonstrates", "shows capability", "actively contributing" rather than negative framing
+        TONE REQUIREMENTS:
+        - Maintain a predominantly positive tone
+        - Keep it brief and scannable
 
-      STRUCTURE:
-      Paragraph 1: Meeting insights and notable contributions (2-3 sentences, mention source as "Otter", use **bold** for source)
-      Paragraph 2: Key metrics and what they show (2-3 sentences, mention source as "Salesforce", use **bold** for source and numbers)
-      Paragraph 3: Growth opportunities or forward-looking statement (1-2 sentences)
+        STRUCTURE:
+        1. Sales Rep Name - **$X revenue**, **Y deals closed** (brief notable achievement if any)
+        2. Sales Rep Name - ...
 
-      IMPORTANT:
-      - Use ONLY the data provided to you
-      - If data is incomplete, acknowledge limitations neutrally
-      - Never invent or assume information not in the data
-      - Reference specific numbers and meeting insights naturally
-    RESPONSE_PROMPT
+        Optional: One paragraph with meeting insights mentioning source as **Otter** if relevant context exists.
+
+        IMPORTANT:
+        - Use ONLY the data provided to you
+        - Reference specific numbers naturally
+      RESPONSE_PROMPT
+    else
+      <<~RESPONSE_PROMPT
+        You are a performance analyst for the #{app_display_name} Salesforce sales team.
+
+        Your job is to analyze data and provide clear, actionable insights.
+
+        WRITING STYLE:
+        - Write in short, focused paragraphs (2-4 sentences each)
+        - Separate different topics with a blank line between paragraphs
+        - Maximum 3 paragraphs total
+        - Use bold markdown **like this** to highlight key metrics and achievements
+        - Be concise and scannable - prioritize clarity over comprehensiveness
+        - Focus on the most important insights only
+
+        ANALYSIS GUIDELINES:
+        - Combine quantitative metrics with qualitative context from meetings
+        - DO NOT add the metric in response if the value is 0 (e.g., $0 revenue, 0 opportunities closed etc)
+        - Focus on strengths, achievements, and positive contributions
+        - Frame any areas for improvement constructively and supportively
+        - Lead with accomplishments before mentioning growth areas
+        - Use appreciative language and highlight specific positive evidence
+        - Keep tone warm, encouraging, and professional
+        - Default to optimistic interpretation when data is ambiguous
+
+        TONE REQUIREMENTS:
+        - Maintain a predominantly positive tone (100% positive, 0% constructive/negative)
+        - Start with accomplishments and strong points
+        - End on an uplifting or forward-looking note
+        - Keep it brief - if you can't fit it in 3 short paragraphs, it's not essential
+        - Use phrases like "demonstrates", "shows capability", "actively contributing" rather than negative framing
+
+        STRUCTURE:
+        Paragraph 1: Meeting insights and notable contributions (2-3 sentences, mention source as "Otter", use **bold** for source)
+        Paragraph 2: Key metrics and what they show (2-3 sentences, mention source as "Salesforce", use **bold** for source and numbers)
+        Paragraph 3: Growth opportunities or forward-looking statement (1-2 sentences)
+
+        IMPORTANT:
+        - Use ONLY the data provided to you
+        - If data is incomplete, acknowledge limitations neutrally
+        - Never invent or assume information not in the data
+        - Reference specific numbers and meeting insights naturally
+      RESPONSE_PROMPT
+    end
   end
 
   # Build user prompt for response generation (CALL 2)
@@ -412,7 +453,8 @@ class SalesforceAiQueryProcessorWithTranscripts
   def handle_conversational_query(user_query, app_type, chat_service, conversation_context, transcript_chunks)
     client = initialize_bedrock_client
 
-    system_prompt = build_response_generation_prompt(app_type, [])
+    list_format = user_wants_list_format?(user_query)
+    system_prompt = build_response_generation_prompt(app_type, [], list_format)
 
     prompt_parts = []
 
@@ -486,13 +528,8 @@ class SalesforceAiQueryProcessorWithTranscripts
     # Remove any "Note:" sections
     cleaned = cleaned.split(/\n\n?Note:/i).first&.strip || cleaned
 
-    # Convert numbered lists to paragraphs if present
-    if cleaned.match?(/^\d+\.\s/)
-      Rails.logger.warn "AI returned numbered list - converting to paragraph"
-      cleaned = cleaned.gsub(/^\d+\.\s+/, "").gsub(/\n+/, " ")
-    end
-
-    # Convert bullet lists to paragraphs if present
+    # Only convert lists to paragraphs if they're bullet lists (not numbered)
+    # Keep numbered lists intact for ranking/list queries
     if cleaned.match?(/^[•\-\*]\s/)
       Rails.logger.warn "AI returned bullet list - converting to paragraph"
       cleaned = cleaned.gsub(/^[•\-\*]\s+/, "").gsub(/\n+/, " ")
