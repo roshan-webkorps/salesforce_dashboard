@@ -59,7 +59,7 @@ class SalesforceAiQueryProcessorWithTranscripts
       if sql_results.empty?
         return {
           success: false,
-          error: "No data found matching your query.",
+          error: "I couldn’t find any matching data for your request. It’s possible the person isn’t in the system or there isn’t enough information available right now.",
           user_query: user_query
         }
       end
